@@ -1,0 +1,265 @@
+/* resources/js/components/Login/Login.module.css */
+
+.mainWrapper {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image:
+        linear-gradient(rgba(0, 84, 97, 0.7), rgba(0, 50, 60, 0.8)),
+        url('/images/fondo/Fondo_Login.jpg');
+    background-size: cover;
+    background-position: center;
+}
+
+.containerCard {
+    width: 750px;
+    height: 500px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    position: relative;
+    overflow: hidden;
+    /* TRUCO PARA ELIMINAR BORDES BLANCOS EN ESQUINAS: */
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    mask-image: radial-gradient(white, black);
+}
+
+.sliderContent {
+    display: flex;
+    width: 200%; 
+    height: 100%;
+    transition: transform 0.6s cubic-bezier(0.7, 0, 0.3, 1);
+}
+
+.showForm {
+    transform: translateX(-50%); 
+}
+
+/* --- PANELES GENERAL --- */
+.panel {
+    width: 50%; 
+    height: 100%;
+    padding: 2.5rem 3.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: white;
+}
+
+/* --- WELCOME PANEL --- */
+.welcomePanel {
+    background: linear-gradient(135deg, #034a55 0%, #02a2b8 100%) !important;
+    color: white;
+    text-align: center;
+    position: relative;
+
+    /* Textura sutil */
+    background-image:
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+}
+
+.welcomeIcon {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 2rem auto;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* FONDO BLANCO REAL */
+    background: #fcfcfc;
+    border-radius: 22px;
+
+    /* Sombra fuerte para separarlo del fondo */
+    box-shadow:
+        0 20px 45px rgba(0, 0, 0, 0.35),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+
+/* Imagen del logo */
+.logoImage {
+    width: 150px;
+    height: auto;
+    object-fit: contain;
+
+    /* NADA de blur ni glass */
+    filter: none;
+}
+
+.welcomeTitle {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    letter-spacing: -0.5px;
+}
+
+.welcomeText {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    line-height: 1.5;
+    margin-bottom: 2.5rem;
+}
+
+/* --- LOGIN FORM --- */
+.loginTitle {
+    color: #005461;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+/* --- FLOATING LABELS --- */
+.inputGroup {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.floatingInput {
+    height: 50px;
+    width: 100%;
+    padding: 1.25rem 0.75rem 0.25rem;
+    font-size: 1rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    background: #f8f9fa;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Ajuste específico para input de contraseña para que el texto no toque el ojo */
+.floatingInput[type="password"], 
+.floatingInput[type="text"] { 
+    padding-right: 40px; 
+}
+
+.floatingInput:focus {
+    border-color: #3BC1A8;
+    background: white;
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(59, 193, 168, 0.1);
+}
+
+.floatingLabel {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    color: #6c757d;
+    pointer-events: none;
+    transition: all 0.2s ease-in-out;
+    background: transparent;
+    padding: 0 4px;
+    font-size: 1rem;
+    z-index: 1; /* Debajo del toggle */
+}
+
+.floatingInput:focus + .floatingLabel,
+.floatingInput:not(:placeholder-shown) + .floatingLabel {
+    top: 0;
+    transform: translateY(-50%) scale(0.85);
+    left: 10px;
+    color: #005461;
+    font-weight: 600;
+    background: white; 
+    z-index: 2;
+}
+
+/* --- NUEVO: BOTÓN VER CONTRASEÑA --- */
+.passwordToggle {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6c757d;
+    font-size: 1.2rem;
+    z-index: 3; /* Encima de todo */
+    padding: 0;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.passwordToggle:hover {
+    color: #005461;
+}
+
+/* --- BOTONES --- */
+.backButton {
+    align-self: flex-start;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    color: #005461;
+    border: 1px solid #e0e0e0;
+    border-radius: 50px;
+    margin-bottom: 1rem !important; 
+    transition: all 0.2s;
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.backButton:hover {
+    background-color: #f0f7f8;
+    border-color: #3BC1A8;
+}
+
+.submitButton, .startButton {
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.submitButton {
+    background-color: #3BC1A8;
+    color: white;
+    width: 100%;
+}
+
+.submitButton:hover {
+    background-color: #32a892;
+    transform: translateY(-2px);
+}
+
+.startButton {
+    background-color: white;
+    color: #005461;
+}
+
+.startButton:hover {
+    background-color: #f8f9fa;
+    color: #3BC1A8;
+    transform: translateY(-2px);
+}
+
+.submitWrapper, .startWrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.forgotLink {
+    color: #005461;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.forgotLink:hover {
+    color: #3BC1A8;
+    text-decoration: underline;
+}

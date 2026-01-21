@@ -1,0 +1,146 @@
+/* resources/js/components/Admin/Sidebar.module.css */
+
+.sidebarWrapper {
+    position: fixed;
+    top: 50%;
+    left: 20px;
+    transform: translateY(-50%); 
+    
+    height: 90vh; 
+    width: 85px; 
+    
+    z-index: 1000;
+    
+   
+    background: linear-gradient(180deg, #3BC1A8 0%, #005461 100%);
+    padding: 3px;
+    border-radius: 20px;
+    box-shadow: 5px 5px 20px rgba(0, 84, 97, 0.2);
+    
+   
+    transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+    overflow: hidden; 
+}
+
+
+.sidebarWrapper:hover {
+    width: 280px; 
+}
+
+.sidebarContent {
+    background: #ffffff;
+    width: 100%;
+    height: 100%;
+    border-radius: 17px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; 
+}
+
+
+.logoArea {
+    height: 80px;
+    display: flex;
+    align-items: center;
+    padding-left: 0; 
+    color: #005461;
+    font-weight: bold;
+    font-size: 1.3rem;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 1rem;
+    white-space: nowrap; 
+}
+
+
+.logoIcon {
+    min-width: 80px; 
+    display: flex;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: #3BC1A8;
+}
+
+
+.navList {
+    list-style: none;
+    padding: 0 10px;
+    margin: 0;
+    flex-grow: 1;
+    overflow-y: auto; 
+    scrollbar-width: none; 
+}
+.navList::-webkit-scrollbar { display: none; } 
+
+.navItem {
+    margin-bottom: 8px;
+}
+
+.navLink {
+    height: 50px;
+    display: flex;
+    align-items: center;
+    color: #6c757d;
+    text-decoration: none;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+}
+
+.navLink:hover {
+    background-color: #f8f9fa;
+    color: #0C7779;
+}
+
+.active {
+    background: linear-gradient(90deg, rgba(59, 193, 168, 0.1) 0%, transparent 100%);
+    color: #005461;
+    border-left: 4px solid #3BC1A8;
+}
+
+.icon {
+    min-width: 60px; 
+    display: flex;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+
+
+.linkText {
+    opacity: 0;
+    transform: translateX(10px);
+    transition: all 0.3s ease;
+}
+
+.sidebarWrapper:hover .linkText {
+    opacity: 1;
+    transform: translateX(0);
+    transition-delay: 0.1s; 
+}
+
+.footer {
+    padding: 1rem 10px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.logoutBtn {
+    width: 100%;
+    height: 50px;
+    border: none;
+    background: #ebfffa;
+    color: #1e837a;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; 
+    padding: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: 0.2s;
+}
+
+.logoutBtn:hover {
+    background: #cdfcff;
+}

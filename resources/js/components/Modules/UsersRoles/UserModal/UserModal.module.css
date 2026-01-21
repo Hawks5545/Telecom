@@ -1,0 +1,63 @@
+/* resources/js/components/Modules/UserModal/UserModal.module.css */
+
+.modalOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 1050;
+    animation: fadeIn 0.3s ease-out;
+    backdrop-filter: blur(3px); /* Efecto difuminado en el fondo */
+}
+
+.modalContent {
+    background-color: white;
+    width: 650px; /* Un poco más ancho para que se vea bien */
+    max-width: 95%;
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+    overflow: hidden;
+    animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modalHeader {
+    background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
+    color: white; padding: 1rem 1.5rem;
+    display: flex; justify-content: space-between; align-items: center;
+}
+
+.modalTitle { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.btnClose { background: transparent; border: none; color: white; font-size: 1.2rem; cursor: pointer; opacity: 0.8; transition: opacity 0.2s; }
+.btnClose:hover { opacity: 1; transform: scale(1.1); }
+
+.modalBody { padding: 1.5rem 2rem; }
+
+.modalFooter {
+    padding: 1rem 1.5rem; background-color: #f8f9fa; border-top: 1px solid #e9ecef;
+    display: flex; justify-content: flex-end; gap: 12px;
+}
+
+.label { font-weight: 600; color: #495057; font-size: 0.85rem; margin-bottom: 0.4rem; display: block; }
+
+/* Inputs deshabilitados se ven más claros pero legibles */
+.formControlDisabled {
+    background-color: #e9ecef;
+    opacity: 1;
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
+.alertInfo {
+    font-size: 0.8rem; background-color: #cff4fc; color: #055160; 
+    padding: 0.5rem; border-radius: 6px; margin-top: 5px; display: flex; align-items: center;
+}
+
+/* Botones */
+.btnCancel { border: 1px solid #ced4da; background: white; color: #495057; padding: 0.5rem 1.2rem; border-radius: 6px; font-weight: 500; transition: all 0.2s; }
+.btnCancel:hover { background: #e9ecef; }
+
+.btnSave { background-color: #005461; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; font-weight: 500; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0, 84, 97, 0.3); }
+.btnSave:hover { background-color: #003d46; transform: translateY(-1px); }
+
+/* Animaciones */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }

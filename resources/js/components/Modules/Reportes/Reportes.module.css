@@ -1,0 +1,89 @@
+/* resources/js/components/Modules/Reportes/Reportes.module.css */
+
+.fadeIn { animation: fadeIn 0.5s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.pageTitle { color: #005461; font-weight: 700; margin: 0; }
+
+/* CARD GENERAL */
+.cardCustom {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    background-color: white;
+}
+
+/* HEADER DEL CARD */
+.cardHeader {
+    background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
+    color: white;
+    font-weight: 600;
+    padding: 1rem 1.5rem;
+    border-radius: 15px 15px 0 0;
+}
+
+/* FILTROS */
+.filterContainer { padding: 1.5rem; border-bottom: 1px solid #f0f0f0; }
+
+.label {
+    font-weight: 600; color: #6c757d; font-size: 0.85rem;
+    margin-bottom: 0.5rem; display: block;
+}
+
+/* BOTÓN GENERAR */
+.btnGenerate {
+    background-color: #005461; color: white; border: none; font-weight: 500;
+    width: 100%; transition: background 0.3s;
+}
+.btnGenerate:hover { background-color: #003d46; color: white; }
+
+/* TARJETAS DE ESTADÍSTICAS */
+.statCard {
+    flex: 1; background-color: #fff; border: 1px solid #e9ecef;
+    border-radius: 12px; padding: 20px; text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.02); transition: transform 0.2s;
+}
+.statCard:hover { transform: translateY(-5px); border-color: #3BC1A8; }
+.statNumber { font-size: 2rem; font-weight: 700; color: #005461; margin-bottom: 5px; }
+.statLabel { color: #6c757d; font-weight: 500; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1px; }
+
+/* BOTÓN PDF */
+.btnPdf { color: #dc3545; border-color: #dc3545; background: white; font-size: 0.9rem; }
+.btnPdf:hover { background-color: #dc3545; color: white; }
+
+/* --- SCROLL INTERNO --- */
+.tableWrapper {
+    max-height: 45vh; /* Altura controlada */
+    overflow-y: auto;
+    position: relative;
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Scrollbar fina */
+.tableWrapper::-webkit-scrollbar { width: 8px; height: 8px; }
+.tableWrapper::-webkit-scrollbar-track { background: #f1f1f1; }
+.tableWrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+.tableWrapper::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+/* TABLA HEADER FIJO */
+.tableHeader th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #005461; /* Sólido para el sticky */
+    color: white;
+    box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);
+}
+
+/* PAGINACIÓN */
+.paginationBtn {
+    border: none; background: transparent; color: #005461; margin: 0 2px;
+    border-radius: 5px; min-width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center; font-size: 0.9rem;
+    cursor: pointer; transition: all 0.2s;
+}
+.paginationBtn:hover { background-color: #f0f0f0; }
+.paginationBtnActive { background-color: #3BC1A8 !important; color: white !important; }
+.paginationBtnDisabled { opacity: 0.5; cursor: not-allowed; }

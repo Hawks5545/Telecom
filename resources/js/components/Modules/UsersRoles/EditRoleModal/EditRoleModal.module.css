@@ -1,0 +1,41 @@
+/* Copia el mismo CSS del EditUserModal.module.css */
+/* Solo agrega este extra para la grilla */
+.permissionsGrid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    background-color: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba;
+}
+/* Alerta para Admin */
+.adminLocked {
+    background-color: #cff4fc; color: #055160; padding: 1rem; border-radius: 8px; 
+    display: flex; align-items: center; gap: 10px; font-size: 0.9rem;
+}
+
+.modalOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); z-index: 1050;
+    display: flex; justify-content: center; align-items: center;
+    animation: fadeIn 0.3s ease-out; backdrop-filter: blur(2px);
+}
+.modalContent {
+    background-color: white; width: 650px; max-width: 95%; border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.25); overflow: hidden;
+    animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.modalHeader {
+    background: linear-gradient(90deg, #E65100 0%, #F57C00 100%); /* Naranja para diferenciar Editar */
+    color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;
+}
+.modalTitle { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.btnClose { background: transparent; border: none; color: white; font-size: 1.2rem; cursor: pointer; }
+.modalBody { padding: 1.5rem 2rem; }
+.modalFooter { padding: 1rem 1.5rem; background-color: #f8f9fa; border-top: 1px solid #e9ecef; display: flex; justify-content: flex-end; gap: 12px; }
+.label { font-weight: 600; color: #495057; font-size: 0.85rem; margin-bottom: 0.4rem; display: block; }
+.btnCancel { border: 1px solid #ced4da; background: white; color: #495057; padding: 0.5rem 1.2rem; border-radius: 6px; }
+.btnSave { background-color: #E65100; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; font-weight: 500; }
+.btnSave:hover { background-color: #bf4503; }
+
+/* Estilos para campos bloqueados */
+.readOnlyInput { background-color: #e9ecef; color: #6c757d; cursor: not-allowed; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }

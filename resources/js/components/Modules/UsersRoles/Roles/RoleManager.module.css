@@ -1,0 +1,23 @@
+.sectionHeader {
+    padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0;
+}
+.sectionTitle { font-size: 1.1rem; font-weight: 700; color: #495057; margin: 0; }
+
+.btnAdd {
+    background-color: #3BC1A8; color: white; border: none; font-weight: 500;
+    border-radius: 8px; padding: 8px 16px; transition: transform 0.2s;
+}
+.btnAdd:hover { background-color: #2ea891; color: white; transform: translateY(-2px); }
+
+/* TABLA */
+.tableHeader { background: linear-gradient(90deg, #005461 0%, #0C7779 100%); color: white; }
+
+.permTag {
+    display: inline-block; background-color: #e9ecef; color: #495057;
+    padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
+    margin-right: 4px; border: 1px solid #dee2e6;
+}
+
+.actionLink { text-decoration: none; font-weight: 500; font-size: 0.9rem; margin-right: 10px; cursor: pointer; }
+.editLink { color: #0d6efd; } .editLink:hover { text-decoration: underline; }
+.deleteLink { color: #dc3545; } .deleteLink:hover { text-decoration: underline; }

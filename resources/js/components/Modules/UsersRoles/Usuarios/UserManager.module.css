@@ -1,0 +1,47 @@
+/* resources/js/components/Modules/UsersRoles/UserManager.module.css */
+
+.sectionHeader {
+    padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0;
+}
+.sectionTitle { font-size: 1.1rem; font-weight: 700; color: #495057; margin: 0; }
+
+.btnAdd {
+    background-color: #3BC1A8; color: white; border: none; font-weight: 500;
+    border-radius: 8px; padding: 8px 16px; transition: transform 0.2s;
+}
+.btnAdd:hover { background-color: #2ea891; color: white; transform: translateY(-2px); }
+
+/* SCROLL INTERNO (60vh) */
+.tableWrapper {
+    max-height: 60vh; 
+    overflow-y: auto; 
+    position: relative;
+}
+.tableWrapper::-webkit-scrollbar { width: 8px; }
+.tableWrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+
+/* TABLE HEADER STICKY */
+.tableHeader th {
+    position: sticky; top: 0; z-index: 10;
+    background-color: #005461; color: white;
+}
+
+/* ESTADOS */
+.statusActive { background-color: #d1e7dd; color: #0f5132; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+.statusInactive { background-color: #f8d7da; color: #842029; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+
+/* ACCIONES */
+.actionLink { text-decoration: none; font-weight: 500; font-size: 0.9rem; margin-right: 10px; cursor: pointer; }
+.editLink { color: #0d6efd; } .editLink:hover { text-decoration: underline; }
+.deleteLink { color: #dc3545; } .deleteLink:hover { text-decoration: underline; }
+
+/* PAGINACIÓN */
+.paginationBtn {
+    border: none; background: transparent; color: #005461; margin: 0 1px;
+    border-radius: 4px; min-width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s;
+}
+.paginationBtn:hover { background-color: #f0f0f0; }
+.paginationBtnActive { background-color: #3BC1A8 !important; color: white !important; }
+.paginationBtnDisabled { opacity: 0.5; cursor: not-allowed; }
+
