@@ -1,11 +1,11 @@
 // resources/js/components/Modules/FolderManager/FolderManager.jsx
 import React, { useState, useMemo } from 'react';
 import styles from './FolderManager.module.css';
+import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const FolderManager = () => {
     
     // --- 1. GENERACIÓN DE DATOS MASIVOS ---
-    // Creamos una función que genera carpetas base + 50 archivos de relleno
     const generateMockData = () => {
         const baseFolders = [
             { id: 1, parentId: 0, name: 'ETB', type: 'folder', items: 52, date: '2025-01-10' },
@@ -18,10 +18,10 @@ const FolderManager = () => {
             { id: 12, parentId: 1, name: 'ETB_Soporte', type: 'folder', items: 50, date: '2025-01-16' },
         ];
 
-        // Generamos 50 archivos falsos DENTRO DE LA CARPETA ETB (id: 1)
+        // Genera 50 archivos para probar como se veria con datos reales
         const extraFiles = Array.from({ length: 50 }, (_, i) => ({
             id: 100 + i,
-            parentId: 1, // Pertenecen a ETB
+            parentId: 1, 
             name: `Grabacion_Llamada_Cliente_${i + 100}.wav`,
             type: 'file',
             items: 0,
@@ -33,11 +33,63 @@ const FolderManager = () => {
     };
 
     const [mockFileSystem] = useState(generateMockData());
-
     const [currentFolderId, setCurrentFolderId] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [breadcrumbs, setBreadcrumbs] = useState([{ id: 0, name: 'Inicio' }]);
 
+    // --- 2. CONFIGURACIÓN DE ALERTA ---
+    const [alertConfig, setAlertConfig] = useState({
+        isOpen: false,
+        type: 'info',
+        title: '',
+        message: '',
+        onConfirm: null
+    });
+
+    const showAlert = (type, title, message, onConfirm = null) => {
+        setAlertConfig({ isOpen: true, type, title, message, onConfirm });
+    };
+
+    const closeAlert = () => {
+        setAlertConfig({ ...alertConfig, isOpen: false });
+    };
+
+    // --- 3. LÓGICA DE DESCARGA ---
+    const handleDownload = (item) => {
+        if (item.type === 'folder') {
+            // CASO 1: CARPETA (Advertencia Masiva)
+            showAlert(
+                'info',
+                'Descarga Masiva Detectada',
+                `⚠️ ADVERTENCIA: Estás a punto de descargar la carpeta "${item.name}". Esta acción comprimirá y descargará gran cantidad de subcarpetas y audios. ¿Deseas continuar?`,
+                () => executeDownload(item)
+            );
+        } else {
+            // CASO 2: ARCHIVO INDIVIDUAL (Confirmación Simple)
+            showAlert(
+                'info',
+                'Descargar Audio',
+                `¿Deseas descargar el archivo de grabación "${item.name}"?`,
+                () => executeDownload(item)
+            );
+        }
+    };
+
+    const executeDownload = (item) => {
+        // Simulación de proceso de descarga
+        console.log(`Descargando ${item.name}...`);
+        
+        // Simulamos delay y mostramos éxito
+        setTimeout(() => {
+            showAlert(
+                'success',
+                'Descarga Iniciada',
+                `El elemento "${item.name}" se está descargando en tu equipo.`
+            );
+        }, 500);
+    };
+
+    // --- Lógica de renderizado existente ---
     const currentFiles = useMemo(() => {
         return mockFileSystem.filter(item => {
             const isInCurrentFolder = item.parentId === currentFolderId;
@@ -57,20 +109,19 @@ const FolderManager = () => {
         setBreadcrumbs(breadcrumbs.slice(0, index + 1));
     };
 
-    const handleDownload = (item) => {
-        if (item.type === 'folder') {
-            const confirm = window.confirm(
-                `⚠️ ADVERTENCIA: Estás a punto de descargar la carpeta "${item.name}".\n\nEsta carpeta puede contener una gran cantidad de subcarpetas y audios. ¿Deseas continuar?`
-            );
-            if (confirm) alert("Iniciando compresión y descarga... (Simulado)");
-        } else {
-            console.log("Descargando archivo:", item.name);
-        }
-    };
-
     return (
         <div className={`container-fluid p-0 ${styles.fadeIn}`}>
             
+            {/* --- INTEGRACIÓN COMPONENTE DE ALERTA --- */}
+            <CustomAlert 
+                isOpen={alertConfig.isOpen}
+                type={alertConfig.type}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={closeAlert}
+                onConfirm={alertConfig.onConfirm}
+            />
+
             <h2 className={`mb-4 ${styles.pageTitle}`}>
                 <i className="bi bi-folder-fill me-2"></i>
                 Gestión de Carpetas
@@ -139,7 +190,6 @@ const FolderManager = () => {
             <div className={`card ${styles.cardCustom}`}>
                 <div className="card-body p-0">
                     
-                    {/* ENVOLTURA PARA EL SCROLL (Table Wrapper) */}
                     <div className={`table-responsive ${styles.tableWrapper}`}>
                         <table className="table table-hover mb-0 align-middle">
                             <thead className={styles.tableHeader}>
@@ -187,6 +237,7 @@ const FolderManager = () => {
                                                 )}
                                                 <button 
                                                     className={`btn btn-sm btn-outline-success ${styles.btnDownload}`}
+                                                    // Conectado a la nueva lógica con Alerta
                                                     onClick={() => handleDownload(item)}
                                                 >
                                                     <i className="bi bi-download me-1"></i> Descargar

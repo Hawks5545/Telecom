@@ -6,7 +6,7 @@ const WelcomePanel = ({ onStart }) => {
     return (
         <div className="d-flex flex-column justify-content-center h-100">
             
-            {/* Logo */}
+            {/* Contenedor del Logo con Sombra */}
             <div className={styles.welcomeIcon}>
                 <img 
                     src="/images/logo/LogoTelecom.png"
@@ -15,7 +15,7 @@ const WelcomePanel = ({ onStart }) => {
                 />
             </div>
 
-            <h2 className={styles.welcomeTitle}>Telecom</h2>
+            <h2 className={styles.welcomeTitle}>TeleCom</h2>
 
             <p className={styles.welcomeText}>
                 Accede a la plataforma centralizada para la gestión y auditoría inteligente de grabaciones.
@@ -24,13 +24,12 @@ const WelcomePanel = ({ onStart }) => {
             <div className={styles.startWrapper}>
                 <button
                     type="button"
-                    className={`btn ${styles.startButton}`}
+                    className={styles.startButton}
                     onClick={onStart}
                 >
                     Iniciar Sesión <i className="bi bi-arrow-right"></i>
                 </button>
             </div>
-
         </div>
     );
 };

@@ -1,61 +1,155 @@
-// resources/js/components/Modules/UsersRoles/RoleModal.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import styles from './RoleModal.module.css';
 
-const RoleModal = ({ isOpen, onClose }) => {
+const RoleModal = ({ isOpen, onClose, onSuccess }) => {
     if (!isOpen) return null;
+
+    const [formData, setFormData] = useState({
+        display_name: '',
+        description: ''
+    });
+
+    // Estado para los permisos basados en los módulos del sistema
+    const [selectedPerms, setSelectedPerms] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    // Lista de permisos que coinciden con los módulos de Telecom
+    const availablePermissions = [
+        "Dashboard",
+        "Búsqueda de Grabaciones",
+        "Gestor de Carpetas",
+        "Indexación",
+        "Auditorías",
+        "Reportes"
+    ];
+
+    const handleChange = (e) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
+    };
+
+    const handleCheckChange = (perm) => {
+        if (selectedPerms.includes(perm)) {
+            setSelectedPerms(selectedPerms.filter(p => p !== perm));
+        } else {
+            setSelectedPerms([...selectedPerms, perm]);
+        }
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setError('');
+
+        const token = localStorage.getItem('auth_token');
+
+        // Enviamos los datos junto con el array de permisos de módulos
+        const payload = {
+            ...formData,
+            permisos: selectedPerms 
+        };
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/api/roles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setFormData({ display_name: '', description: '' });
+                setSelectedPerms([]);
+                onSuccess(); 
+            } else {
+                // Si sale el error de "Mass Assignment", 
+                // recuerda agregar 'name' al array $fillable en el modelo Role de Laravel.
+                setError(data.message || 'Error al crear el rol');
+            }
+        } catch (err) {
+            setError('Error de conexión con el servidor');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     return (
         <div className={styles.modalOverlay}>
             <div className={styles.modalContent}>
                 <div className={styles.modalHeader}>
-                    <h5 className={styles.modalTitle}>Crear Rol</h5>
-                    <button className={styles.btnClose} onClick={onClose}>
+                    <h5 className={styles.modalTitle}>Crear Nuevo Rol</h5>
+                    <button className={styles.btnClose} onClick={onClose} disabled={isSubmitting}>
                         <i className="bi bi-x-lg"></i>
                     </button>
                 </div>
+                
                 <div className={styles.modalBody}>
-                    <form className="row g-3">
+                    {error && (
+                        <div className="alert alert-danger p-2 small text-center">{error}</div>
+                    )}
+
+                    <form className="row g-3" onSubmit={handleSave}>
                         <div className="col-12">
                             <label className={styles.label}>Nombre del Rol</label>
-                            <input type="text" className="form-control" placeholder="Ej: Supervisor de Calidad" />
+                            <input 
+                                type="text" 
+                                name="display_name"
+                                className="form-control" 
+                                placeholder="Ej: Operador Nocturno" 
+                                value={formData.display_name}
+                                onChange={handleChange}
+                                required
+                            />
                         </div>
                         <div className="col-12">
                             <label className={styles.label}>Descripción</label>
-                            <textarea className="form-control" rows="2" placeholder="Breve descripción..."></textarea>
+                            <textarea 
+                                name="description"
+                                className="form-control" 
+                                rows="2" 
+                                placeholder="Indique el propósito de este rol..."
+                                value={formData.description}
+                                onChange={handleChange}
+                            ></textarea>
                         </div>
                         
                         <div className="col-12">
-                            <label className={styles.label}>Permisos Asignados</label>
-                            <div className={styles.permissionsGrid}>
-                                <div className="form-check">
-                                    <input className="form-check-input" type="checkbox" id="p1" />
-                                    <label className="form-check-label small" htmlFor="p1">Buscar Grabaciones</label>
-                                </div>
-                                {/* OPCIÓN 'REPRODUCIR AUDIO' ELIMINADA */}
-                                <div className="form-check">
-                                    <input className="form-check-input" type="checkbox" id="p3" />
-                                    <label className="form-check-label small" htmlFor="p3">Descargar ZIP</label>
-                                </div>
-                                <div className="form-check">
-                                    <input className="form-check-input" type="checkbox" id="p4" />
-                                    <label className="form-check-label small" htmlFor="p4">Ver Reportes</label>
-                                </div>
-                                <div className="form-check">
-                                    <input className="form-check-input" type="checkbox" id="p5" />
-                                    <label className="form-check-label small" htmlFor="p5">Auditoría</label>
-                                </div>
-                                <div className="form-check">
-                                    <input className="form-check-input" type="checkbox" id="p6" />
-                                    <label className="form-check-label small" htmlFor="p6">Gestión de Usuarios</label>
-                                </div>
+                            <label className={styles.label}>Permisos de Módulos (Acceso)</label>
+                            <div className={styles.permissionsGrid} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                {availablePermissions.map((perm, index) => (
+                                    <div className="form-check" key={index}>
+                                        <input 
+                                            className="form-check-input" 
+                                            type="checkbox" 
+                                            id={`perm-${index}`}
+                                            checked={selectedPerms.includes(perm)}
+                                            onChange={() => handleCheckChange(perm)}
+                                        />
+                                        <label className="form-check-label small" htmlFor={`perm-${index}`}>
+                                            {perm}
+                                        </label>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </form>
                 </div>
+
                 <div className={styles.modalFooter}>
-                    <button className={styles.btnCancel} onClick={onClose}>Cancelar</button>
-                    <button className={styles.btnSave} onClick={() => { alert('Rol Guardado'); onClose(); }}>Guardar Rol</button>
+                    <button className={styles.btnCancel} onClick={onClose} disabled={isSubmitting}>
+                        Cancelar
+                    </button>
+                    <button className={styles.btnSave} onClick={handleSave} disabled={isSubmitting}>
+                        {isSubmitting ? 'Guardando...' : 'Guardar Rol'}
+                    </button>
                 </div>
             </div>
         </div>

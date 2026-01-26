@@ -1,27 +1,29 @@
 // resources/js/components/Modules/Auditoria/Auditoria.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import styles from './Auditoria.module.css';
 
 const Auditoria = () => {
     
-    // --- 1. DATOS SIMULADOS ---
-    const mockAuditLogs = Array.from({ length: 50 }, (_, i) => {
+    // --- GENERACIÓN DE DATOS (Memoized para evitar re-generación en cada render) ---
+    const mockAuditLogs = useMemo(() => {
         const actions = ['Inicio de Sesión', 'Descarga de Audio', 'Eliminar Usuario', 'Modificar Configuración'];
         const users = ['Carlos Admin', 'Juan Perez', 'Maria Soporte', 'Sistema'];
-        const randomAction = actions[Math.floor(Math.random() * actions.length)];
         
-        return {
-            id: i + 1,
-            dateTime: `2026-01-${(i % 30) + 1} ${(10 + i) % 24}:30:15`,
-            user: users[i % 4],
-            action: randomAction,
-            detail: randomAction === 'Descarga de Audio' ? `Archivo rec_20250${i}.wav descargado` : 
-                   randomAction === 'Inicio de Sesión' ? 'Acceso exitoso desde IP 192.168.1.50' :
-                   randomAction === 'Eliminar Usuario' ? 'Usuario "invitado" eliminado' : 'Cambio en ruta de indexación'
-        };
-    });
+        return Array.from({ length: 50 }, (_, i) => {
+            const randomAction = actions[Math.floor(Math.random() * actions.length)];
+            return {
+                id: i + 1,
+                dateTime: `2026-01-${(i % 30) + 1} ${(10 + i) % 24}:30:15`,
+                user: users[i % 4],
+                action: randomAction,
+                detail: randomAction === 'Descarga de Audio' ? `Archivo rec_20250${i}.wav descargado` : 
+                        randomAction === 'Inicio de Sesión' ? 'Acceso exitoso desde IP 192.168.1.50' :
+                        randomAction === 'Eliminar Usuario' ? 'Usuario "invitado" eliminado' : 'Cambio en ruta de indexación'
+            };
+        });
+    }, []);
 
-    // --- 2. LÓGICA DE PAGINACIÓN ---
+    // --- LÓGICA DE PAGINACIÓN ---
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10; 
 
@@ -29,10 +31,6 @@ const Auditoria = () => {
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = mockAuditLogs.slice(indexOfFirstItem, indexOfLastItem);
     const totalPages = Math.ceil(mockAuditLogs.length / itemsPerPage);
-
-    const handlePageChange = (pageNumber) => {
-        setCurrentPage(pageNumber);
-    };
 
     const getBadgeStyle = (actionName) => {
         if (actionName.includes('Inicio')) return styles.badgeLogin;
@@ -45,11 +43,10 @@ const Auditoria = () => {
         <div className={`container-fluid p-0 ${styles.fadeIn}`}>
             
             <h2 className={`mb-4 ${styles.pageTitle}`}>
-                <i className="bi bi-shield-check me-2"></i>
-                Auditoría del Sistema
+                <i className="bi bi-shield-check me-2"></i> Auditoría del Sistema
             </h2>
 
-            {/* --- SECCIÓN DE FILTROS --- */}
+            {/* --- FILTROS --- */}
             <div className={`card ${styles.cardCustom}`}>
                 <div className={styles.cardHeader}>
                     <i className="bi bi-funnel me-2"></i> Filtros de Auditoría
@@ -61,12 +58,10 @@ const Auditoria = () => {
                             <label className={styles.label}>Fecha desde</label>
                             <input type="date" className="form-control" />
                         </div>
-
                         <div className="col-md-3">
                             <label className={styles.label}>Fecha hasta</label>
                             <input type="date" className="form-control" />
                         </div>
-
                         <div className="col-md-3">
                             <label className={styles.label}>Usuario</label>
                             <select className="form-select">
@@ -75,7 +70,6 @@ const Auditoria = () => {
                                 <option value="juan">Juan Perez</option>
                             </select>
                         </div>
-
                         <div className="col-md-3">
                             <label className={styles.label}>Acción</label>
                             <select className="form-select">
@@ -85,14 +79,13 @@ const Auditoria = () => {
                             </select>
                         </div>
 
-                        {/* Botones alineados a la derecha */}
                         <div className="col-12 text-end mt-4">
                              <div className="d-inline-flex gap-2">
-                                <button type="button" className="btn btn-outline-secondary">
-                                    <i className="bi bi-eraser"></i> Limpiar
+                                <button type="button" className="btn btn-outline-secondary px-4">
+                                    <i className="bi bi-eraser me-2"></i>Limpiar
                                 </button>
-                                <button type="button" className={`btn ${styles.btnFilter}`}>
-                                    <i className="bi bi-search me-1"></i> Buscar Eventos
+                                <button type="button" className={styles.btnFilter}>
+                                    <i className="bi bi-search me-2"></i>Buscar
                                 </button>
                             </div>
                         </div>
@@ -103,8 +96,6 @@ const Auditoria = () => {
             {/* --- TABLA DE RESULTADOS --- */}
             <div className={`card ${styles.cardCustom}`}>
                 <div className="card-body p-0">
-                    
-                    {/* AQUÍ AGREGAMOS LA CLASE styles.tableWrapper PARA EL SCROLL INTERNO */}
                     <div className={`table-responsive ${styles.tableWrapper}`}>
                         <table className="table table-hover mb-0 align-middle">
                             <thead className={styles.tableHeader}>
@@ -122,8 +113,7 @@ const Auditoria = () => {
                                             {log.dateTime}
                                         </td>
                                         <td className="fw-bold text-secondary">
-                                            <i className="bi bi-person-circle me-2"></i>
-                                            {log.user}
+                                            <i className="bi bi-person-circle me-2"></i>{log.user}
                                         </td>
                                         <td>
                                             <span className={`badge ${getBadgeStyle(log.action)} p-2 rounded-pill fw-normal`}>
@@ -138,10 +128,10 @@ const Auditoria = () => {
                     </div>
                 </div>
 
-                {/* --- FOOTER PAGINACIÓN --- */}
+                {/* --- PAGINACIÓN --- */}
                 <div className="card-footer bg-white border-0 py-3 d-flex justify-content-between align-items-center">
                     <div className="text-muted small">
-                        Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, mockAuditLogs.length)} de {mockAuditLogs.length} registros
+                        Mostrando <strong>{indexOfFirstItem + 1}</strong> a <strong>{Math.min(indexOfLastItem, mockAuditLogs.length)}</strong> de {mockAuditLogs.length} registros
                     </div>
                     
                     <nav>
@@ -149,7 +139,7 @@ const Auditoria = () => {
                             <li>
                                 <button 
                                     className={`${styles.paginationBtn} ${currentPage === 1 ? styles.paginationBtnDisabled : ''}`}
-                                    onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                     disabled={currentPage === 1}
                                 >
                                     <i className="bi bi-chevron-left"></i>
@@ -160,7 +150,7 @@ const Auditoria = () => {
                                 <li key={i}>
                                     <button 
                                         className={`${styles.paginationBtn} ${currentPage === i + 1 ? styles.paginationBtnActive : ''}`}
-                                        onClick={() => handlePageChange(i + 1)}
+                                        onClick={() => setCurrentPage(i + 1)}
                                     >
                                         {i + 1}
                                     </button>
@@ -170,7 +160,7 @@ const Auditoria = () => {
                             <li>
                                 <button 
                                     className={`${styles.paginationBtn} ${currentPage === totalPages ? styles.paginationBtnDisabled : ''}`}
-                                    onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                     disabled={currentPage === totalPages}
                                 >
                                     <i className="bi bi-chevron-right"></i>

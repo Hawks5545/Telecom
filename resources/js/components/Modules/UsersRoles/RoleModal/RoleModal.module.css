@@ -1,20 +1,127 @@
-/* Copia exacta del UserModal.module.css, más el grid de permisos */
-.modalOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1050; animation: fadeIn 0.3s ease-out; backdrop-filter: blur(2px); }
-.modalContent { background-color: white; width: 600px; max-width: 90%; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-.modalHeader { background: linear-gradient(90deg, #005461 0%, #0C7779 100%); color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-.modalTitle { margin: 0; font-size: 1.1rem; font-weight: 600; }
-.btnClose { background: transparent; border: none; color: white; font-size: 1.2rem; cursor: pointer; opacity: 0.8; }
-.btnClose:hover { opacity: 1; }
-.modalBody { padding: 1.5rem; }
-.modalFooter { padding: 1rem 1.5rem; background-color: #f8f9fa; border-top: 1px solid #e9ecef; display: flex; justify-content: flex-end; gap: 10px; }
-.label { font-weight: 600; color: #495057; font-size: 0.85rem; margin-bottom: 0.3rem; }
-.btnCancel { border: 1px solid #ced4da; background: white; color: #495057; padding: 0.5rem 1rem; border-radius: 6px; transition: all 0.2s; }
-.btnCancel:hover { background: #e9ecef; }
-.btnSave { background-color: #005461; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; transition: background 0.2s; font-weight: 500; }
-.btnSave:hover { background-color: #003d46; }
+/* resources/js/components/Modules/UserRoles/RoleModal/RoleModal.module.css */
 
-/* ESPECÍFICO DE ROL: GRID */
-.permissionsGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; }
+/* --- ANIMACIONES --- */
+@keyframes fadeIn { 
+    from { opacity: 0; } 
+    to { opacity: 1; } 
+}
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes scaleUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes scaleUp { 
+    from { transform: scale(0.9); opacity: 0; } 
+    to { transform: scale(1); opacity: 1; } 
+}
+
+/* --- ESTRUCTURA DEL MODAL --- */
+.modalOverlay {
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 1050;
+    animation: fadeIn 0.3s ease-out; 
+    backdrop-filter: blur(2px);
+}
+
+.modalContent {
+    background-color: white; 
+    width: 600px; 
+    max-width: 90%; 
+    border-radius: 15px; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
+    overflow: hidden;
+    animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* --- CABECERA --- */
+.modalHeader {
+    background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
+    color: white; 
+    padding: 1rem 1.5rem; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+}
+
+.modalTitle { 
+    margin: 0; 
+    font-size: 1.1rem; 
+    font-weight: 600; 
+}
+
+.btnClose {
+    background: transparent; 
+    border: none; 
+    color: white; 
+    font-size: 1.2rem; 
+    cursor: pointer; 
+    opacity: 0.8;
+}
+
+.btnClose:hover { 
+    opacity: 1; 
+}
+
+/* --- CUERPO Y FORMULARIO --- */
+.modalBody { 
+    padding: 1.5rem; 
+}
+
+.label { 
+    font-weight: 600; 
+    color: #495057; 
+    font-size: 0.85rem; 
+    margin-bottom: 0.3rem; 
+}
+
+/* Grid Específico de Roles */
+.permissionsGrid {
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 10px;
+    background-color: #f8f9fa; 
+    padding: 15px; 
+    border-radius: 8px; 
+    border: 1px solid #dee2e6;
+}
+
+/* --- BOTONES Y PIE DE PÁGINA --- */
+.modalFooter {
+    padding: 1rem 1.5rem; 
+    background-color: #f8f9fa; 
+    border-top: 1px solid #e9ecef; 
+    display: flex; 
+    justify-content: flex-end; 
+    gap: 10px;
+}
+
+.btnCancel {
+    border: 1px solid #ced4da; 
+    background: white; 
+    color: #495057; 
+    padding: 0.5rem 1rem; 
+    border-radius: 6px; 
+    transition: all 0.2s;
+}
+
+.btnCancel:hover { 
+    background: #e9ecef; 
+}
+
+.btnSave {
+    background-color: #005461; 
+    color: white; 
+    border: none; 
+    padding: 0.5rem 1.5rem; 
+    border-radius: 6px; 
+    transition: background 0.2s; 
+    font-weight: 500;
+}
+
+.btnSave:hover { 
+    background-color: #003d46; 
+}

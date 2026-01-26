@@ -1,7 +1,8 @@
+// resources/js/components/Modules/UserRoles/EditRoleModal/EditRoleModal.jsx
 import React, { useEffect, useState } from 'react';
-import styles from './EditRoleModal.module.css'; // Asegúrate de crear este CSS o usar el anterior
+import styles from './EditRoleModal.module.css';
 
-const EditRoleModal = ({ isOpen, onClose, role }) => {
+const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => { 
     if (!isOpen || !role) return null;
 
     const isProtectedAdmin = role.nombre === 'Administrador';
@@ -15,8 +16,13 @@ const EditRoleModal = ({ isOpen, onClose, role }) => {
     }, [role]);
 
     const handleSave = () => {
-        alert("Permisos del rol actualizados.");
-        onClose();
+        // Lógica Backend...
+        
+        if (onSuccess) {
+            onSuccess();
+        } else {
+            onClose();
+        }
     };
 
     return (
@@ -30,10 +36,9 @@ const EditRoleModal = ({ isOpen, onClose, role }) => {
                 </div>
 
                 <div className={styles.modalBody}>
-                    <form className="row g-3">
+                    <form className="row g-3" onSubmit={(e) => e.preventDefault()}>
                         <div className="col-12">
                             <label className={styles.label}>Nombre del Rol</label>
-                            {/* NOMBRE SIEMPRE BLOQUEADO EN EDICIÓN */}
                             <input type="text" className={`form-control ${styles.readOnlyInput}`} value={role.nombre} disabled />
                         </div>
                         
@@ -41,7 +46,7 @@ const EditRoleModal = ({ isOpen, onClose, role }) => {
                             <label className={styles.label}>Descripción</label>
                             <textarea className="form-control" rows="2" 
                                 defaultValue={roleData.desc} 
-                                disabled={isProtectedAdmin} // Bloqueado si es admin
+                                disabled={isProtectedAdmin} 
                             ></textarea>
                         </div>
                         

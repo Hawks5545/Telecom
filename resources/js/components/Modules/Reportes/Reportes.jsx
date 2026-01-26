@@ -1,6 +1,7 @@
 // resources/js/components/Modules/Reportes/Reportes.jsx
 import React, { useState } from 'react';
 import styles from './Reportes.module.css';
+import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const Reportes = () => {
     
@@ -19,7 +20,45 @@ const Reportes = () => {
     const [stats] = useState({ total: 1240, descargadas: 430, zip: 120 });
     const [reportData] = useState(generateMockData());
 
-    // --- 2. LÓGICA DE PAGINACIÓN ---
+    // --- 2. CONFIGURACIÓN DE ALERTA ---
+    const [alertConfig, setAlertConfig] = useState({
+        isOpen: false,
+        type: 'info', 
+        title: '',
+        message: '',
+        onConfirm: null
+    });
+
+    const showAlert = (type, title, message, onConfirm = null) => {
+        setAlertConfig({ isOpen: true, type, title, message, onConfirm });
+    };
+
+    const closeAlert = () => {
+        setAlertConfig({ ...alertConfig, isOpen: false });
+    };
+
+    // --- 3. LÓGICA DE DESCARGA PDF ---
+    const handlePdfClick = () => {
+        showAlert(
+            'info', 
+            'Generar Reporte PDF', 
+            'Estás a punto de generar y descargar el reporte detallado. ¿Deseas continuar?',
+            executeDownload 
+        );
+    };
+
+    const executeDownload = () => {
+        console.log("Generando PDF...");
+        setTimeout(() => {
+            showAlert(
+                'success', 
+                'Descarga Completada', 
+                'El archivo PDF se ha generado y descargado correctamente.'
+            );
+        }, 800);
+    };
+
+    // --- 4. LÓGICA DE PAGINACIÓN ---
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10; 
 
@@ -35,7 +74,17 @@ const Reportes = () => {
     return (
         <div className={`container-fluid p-0 ${styles.fadeIn}`}>
             
-            <h2 className={`mb-3 ${styles.pageTitle}`}> {/* Margen reducido mb-3 */}
+            {/* --- COMPONENTE DE ALERTA --- */}
+            <CustomAlert 
+                isOpen={alertConfig.isOpen}
+                type={alertConfig.type}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={closeAlert}
+                onConfirm={alertConfig.onConfirm}
+            />
+
+            <h2 className={`mb-3 ${styles.pageTitle}`}>
                 <i className="bi bi-file-earmark-bar-graph me-2"></i>
                 Reportes
             </h2>
@@ -46,12 +95,12 @@ const Reportes = () => {
                     <i className="bi bi-funnel me-2"></i> Filtros
                 </div>
 
-                <div className="card-body p-0"> {/* Quitamos padding del body, lo maneja el container */}
+                <div className="card-body p-0">
                     <div className={styles.filterContainer}>
-                        <form className="row g-2 align-items-end"> {/* g-2 para menos espacio horizontal */}
+                        <form className="row g-2 align-items-end">
                             <div className="col-md-3">
                                 <label className={styles.label}>Fecha desde</label>
-                                <input type="date" className="form-control form-control-sm" /> {/* Input Pequeño */}
+                                <input type="date" className="form-control form-control-sm" />
                             </div>
                             <div className="col-md-3">
                                 <label className={styles.label}>Fecha hasta</label>
@@ -76,8 +125,8 @@ const Reportes = () => {
                 </div>
             </div>
 
-            {/* --- ESTADÍSTICAS (Row Compacto) --- */}
-            <div className="row g-3 mb-3"> {/* Margen reducido mb-3 */}
+            {/* --- ESTADÍSTICAS --- */}
+            <div className="row g-3 mb-3">
                 <div className="col-md-4">
                     <div className={styles.statCard}>
                         <div className={styles.statNumber}>{stats.total}</div>
@@ -99,17 +148,22 @@ const Reportes = () => {
             </div>
 
             {/* --- TABLA DETALLE --- */}
-            <div className={`card ${styles.cardCustom} mb-0`}> {/* mb-0 para que no sobre espacio abajo */}
+            <div className={`card ${styles.cardCustom} mb-0`}>
                 <div className="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                     <h6 className="m-0 fw-bold text-secondary" style={{fontSize: '0.9rem'}}>Detalle por Agente</h6>
-                    <button className={`btn btn-sm btn-outline-danger ${styles.btnPdf}`}>
+                    
+                    {/* BOTÓN PDF CONECTADO A LA ALERTA */}
+                    <button 
+                        className={`btn btn-sm btn-outline-danger ${styles.btnPdf}`}
+                        onClick={handlePdfClick} 
+                    >
                         <i className="bi bi-file-earmark-pdf-fill me-1"></i> PDF
                     </button>
                 </div>
 
                 <div className="card-body p-0">
                     <div className={`table-responsive ${styles.tableWrapper}`}>
-                        <table className="table table-hover mb-0 align-middle text-center table-sm"> {/* table-sm */}
+                        <table className="table table-hover mb-0 align-middle text-center table-sm">
                             <thead className={styles.tableHeader}>
                                 <tr>
                                     <th className="text-start ps-4">Fecha</th>

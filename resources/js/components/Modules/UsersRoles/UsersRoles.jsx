@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import styles from './UsersRoles.module.css';
-
-// Importamos los sub-componentes
 import UserManager from './Usuarios/UserManager';
 import RoleManager from './Roles/RoleManager';
 
@@ -15,7 +13,6 @@ const UsersRoles = () => {
                 <i className="bi bi-people-fill me-2"></i>
                 Gestión de Usuarios y Roles
             </h2>
-
             {/* --- PESTAÑAS DE NAVEGACIÓN --- */}
             <div className={styles.tabContainer}>
                 <button 

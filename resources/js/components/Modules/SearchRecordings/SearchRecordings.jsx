@@ -1,8 +1,10 @@
 // resources/js/components/Modules/SearchRecordings/SearchRecordings.jsx
 import React, { useState } from 'react';
 import styles from './SearchRecordings.module.css';
+import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const SearchRecordings = () => {
+    
     // --- LÓGICA (Datos y Paginación) ---
     const generateData = () => {
         return Array.from({ length: 50 }, (_, i) => ({
@@ -22,15 +24,32 @@ const SearchRecordings = () => {
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     
-    // Mantenemos 15 para un buen balance
     const itemsPerPage = 15;
-
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = allData.slice(indexOfFirstItem, indexOfLastItem);
     const totalPages = Math.ceil(allData.length / itemsPerPage);
 
+    // --- 2. CONFIGURACIÓN DE ALERTA ---
+    const [alertConfig, setAlertConfig] = useState({
+        isOpen: false,
+        type: 'info',
+        title: '',
+        message: '',
+        onConfirm: null
+    });
+
+    const showAlert = (type, title, message, onConfirm = null) => {
+        setAlertConfig({ isOpen: true, type, title, message, onConfirm });
+    };
+
+    const closeAlert = () => {
+        setAlertConfig({ ...alertConfig, isOpen: false });
+    };
+
     // --- MANEJADORES DE EVENTOS ---
+    
+    // A. Lógica de Checkbox
     const handleSelectAll = (e) => {
         if (e.target.checked) {
             const allCurrentIds = currentItems.map(item => item.id);
@@ -49,11 +68,49 @@ const SearchRecordings = () => {
         }
     };
 
+    // B. Lógica de Descarga Masiva (CON ALERTA)
+    const handleMassiveDownload = () => {
+        showAlert(
+            'info', 
+            'Descarga Múltiple',
+            `Estás a punto de descargar ${selectedItems.length} grabaciones seleccionadas. Se generará un archivo ZIP comprimido. ¿Deseas continuar?`,
+            executeMassiveDownload
+        );
+    };
+
+    const executeMassiveDownload = () => {
+        console.log(`Descargando ${selectedItems.length} archivos...`);
+        setTimeout(() => {
+            showAlert(
+                'success',
+                'Descarga Iniciada',
+                'El paquete de grabaciones se está generando y la descarga comenzará en breve.',
+                () => setSelectedItems([]) 
+            );
+        }, 500);
+    };
+
+    // C. Descarga Individual (DIRECTA - SIN ALERTA)
+    const handleSingleDownload = (filename) => {
+        console.log(`Descargando archivo individual: ${filename}`);
+        // Aquí iría tu lógica real de window.open o similar
+    };
+
     const isAllSelected = currentItems.length > 0 && currentItems.every(item => selectedItems.includes(item.id));
 
     return (
         <div className={`container-fluid p-0 ${styles.fadeIn}`}>
             
+            {/* --- INTEGRACIÓN COMPONENTE DE ALERTA --- */}
+            <CustomAlert 
+                isOpen={alertConfig.isOpen}
+                type={alertConfig.type}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={closeAlert}
+                onConfirm={alertConfig.onConfirm}
+            />
+
             {/* ENCABEZADO */}
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2 className={styles.pageTitle}>
@@ -62,7 +119,10 @@ const SearchRecordings = () => {
                 </h2>
                 
                 {selectedItems.length > 0 && (
-                    <button className={`btn ${styles.btnDownloadMassive}`}>
+                    <button 
+                        className={`btn ${styles.btnDownloadMassive}`}
+                        onClick={handleMassiveDownload} // <--- CONECTADO A LA ALERTA
+                    >
                         <i className="bi bi-cloud-download-fill me-2"></i>
                         Descargar Seleccionados ({selectedItems.length})
                     </button>
@@ -128,7 +188,6 @@ const SearchRecordings = () => {
             <div className={`card ${styles.cardCustom}`}>
                 <div className={`card-body p-0 ${styles.tableContainer}`}>
                     
-                    {/* ENVOLTURA PARA EL SCROLL INTERNO */}
                     <div className={`table-responsive ${styles.tableWrapper}`}>
                         <table className="table table-hover mb-0 align-middle">
                             <thead className={styles.tableHeader}>
@@ -180,7 +239,11 @@ const SearchRecordings = () => {
                                         <td className="py-2"><span className="badge bg-light text-dark border">{item.campana}</span></td>
                                         <td className="py-2">{item.duracion}</td>
                                         <td className="text-center py-2">
-                                            <button className="btn btn-sm btn-outline-success" title="Descargar">
+                                            <button 
+                                                className="btn btn-sm btn-outline-success" 
+                                                title="Descargar"
+                                                onClick={() => handleSingleDownload(item.filename)} // DIRECTO
+                                            >
                                                 <i className="bi bi-download"></i>
                                             </button>
                                         </td>

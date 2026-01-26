@@ -1,7 +1,10 @@
+// resources/js/components/Modules/UsersRoles/EditUserModal/EditUserModal.jsx
 import React, { useEffect, useState } from 'react';
 import styles from './EditUserModal.module.css';
 
-const EditUserModal = ({ isOpen, onClose, user }) => {
+// 1. Añadimos 'onSuccess' a las props recibidas
+const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
+    
     if (!isOpen || !user) return null;
 
     // REGLA: Si el usuario actual es Administrador, NO se puede cambiar su estado.
@@ -28,8 +31,17 @@ const EditUserModal = ({ isOpen, onClose, user }) => {
     const handleSave = () => {
         // Simulación Backend
         console.log("Actualizando usuario:", user.id, formData);
-        alert("Usuario actualizado exitosamente.");
-        onClose();
+        
+        // --- CAMBIO IMPORTANTE ---
+        // En lugar de alert() y onClose(), llamamos a onSuccess.
+        // El componente padre (UserManager) se encargará de cerrar este modal
+        // y mostrar la alerta bonita 'CustomAlert'.
+        if (onSuccess) {
+            onSuccess();
+        } else {
+            // Fallback por si no se pasa la prop
+            onClose();
+        }
     };
 
     return (
@@ -43,7 +55,7 @@ const EditUserModal = ({ isOpen, onClose, user }) => {
                 </div>
                 
                 <div className={styles.modalBody}>
-                    <form className="row g-3">
+                    <form className="row g-3" onSubmit={(e) => e.preventDefault()}>
                         {/* --- CAMPOS DE SOLO LECTURA --- */}
                         <div className="col-md-6">
                             <label className={styles.label}>Nombres</label>
@@ -93,6 +105,7 @@ const EditUserModal = ({ isOpen, onClose, user }) => {
 
                 <div className={styles.modalFooter}>
                     <button className={styles.btnCancel} onClick={onClose}>Cancelar</button>
+                    {/* El botón llama a handleSave, que ahora dispara la alerta */}
                     <button className={styles.btnSave} onClick={handleSave}>Guardar Cambios</button>
                 </div>
             </div>

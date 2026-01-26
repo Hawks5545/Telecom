@@ -1,11 +1,30 @@
 /* resources/js/components/Modules/FolderManager/FolderManager.module.css */
 
-.fadeIn { animation: fadeIn 0.5s ease-in-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+/* --- ANIMACIONES --- */
+.fadeIn { 
+    animation: fadeIn 0.5s ease-in-out; 
+}
 
-.pageTitle { color: #005461; font-weight: 700; margin: 0; }
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(10px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
 
-/* CARD GENERAL */
+/* --- TEXTOS Y TÍTULOS --- */
+.pageTitle { 
+    color: #005461; 
+    font-weight: 700; 
+    margin: 0; 
+}
+
+.label { 
+    font-weight: 600; 
+    color: #6c757d; 
+    font-size: 0.85rem; 
+    margin-bottom: 0.5rem; 
+}
+
+/* --- CARDS Y ESTRUCTURA --- */
 .cardCustom {
     border: none;
     border-radius: 15px;
@@ -15,7 +34,6 @@
     background-color: white;
 }
 
-/* HEADER DEL CARD (FILTROS) */
 .cardHeader {
     background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
     color: white;
@@ -24,53 +42,121 @@
     border-radius: 15px 15px 0 0;
 }
 
-/* INPUTS Y LABELS */
-.label { font-weight: 600; color: #6c757d; font-size: 0.85rem; margin-bottom: 0.5rem; }
-
-/* BOTONES */
-.searchBtn { background-color: #005461; color: white; border: none; transition: background 0.3s; }
-.searchBtn:hover { background-color: #003d46; color: white; }
-
-/* BREADCRUMBS */
-.breadcrumbBar {
-    background-color: #f8f9fa; padding: 10px 20px; border-radius: 10px; margin-bottom: 15px;
-    display: flex; align-items: center; gap: 10px; border: 1px solid #e9ecef;
+/* --- BOTONES DE FILTRO --- */
+.searchBtn { 
+    background-color: #005461; 
+    color: white; 
+    border: none; 
+    transition: background 0.3s; 
 }
-.breadcrumbItem { color: #6c757d; cursor: pointer; font-weight: 500; transition: color 0.2s; }
-.breadcrumbItem:hover { color: #3BC1A8; text-decoration: underline; }
-.breadcrumbActive { color: #005461; font-weight: 700; cursor: default; }
-.separator { color: #adb5bd; font-size: 0.8rem; }
 
-/* --- SCROLL INTERNO (NUEVO) --- */
+.searchBtn:hover { 
+    background-color: #003d46; 
+    color: white; 
+}
+
+/* --- BREADCRUMBS --- */
+.breadcrumbBar {
+    background-color: #f8f9fa; 
+    padding: 10px 20px; 
+    border-radius: 10px; 
+    margin-bottom: 15px;
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+    border: 1px solid #e9ecef;
+}
+
+.breadcrumbItem { 
+    color: #6c757d; 
+    cursor: pointer; 
+    font-weight: 500; 
+    transition: color 0.2s; 
+}
+
+.breadcrumbItem:hover { 
+    color: #3BC1A8; 
+    text-decoration: underline; 
+}
+
+.breadcrumbActive { 
+    color: #005461; 
+    font-weight: 700; 
+    cursor: default; 
+}
+
+.separator { 
+    color: #adb5bd; 
+    font-size: 0.8rem; 
+}
+
+/* --- TABLA Y SCROLL INTERNO --- */
 .tableWrapper {
-    max-height: 50vh; /* Altura máxima para activar scroll */
+    max-height: 50vh;
     overflow-y: auto;
     position: relative;
     border-bottom: 1px solid #dee2e6;
 }
 
-/* Scrollbar fina */
-.tableWrapper::-webkit-scrollbar { width: 8px; height: 8px; }
-.tableWrapper::-webkit-scrollbar-track { background: #f1f1f1; }
-.tableWrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
-.tableWrapper::-webkit-scrollbar-thumb:hover { background: #bbb; }
+.tableWrapper::-webkit-scrollbar { 
+    width: 8px; 
+    height: 8px; 
+}
 
-/* TABLA HEADER FIJO (STICKY) */
+.tableWrapper::-webkit-scrollbar-track { 
+    background: #f1f1f1; 
+}
+
+.tableWrapper::-webkit-scrollbar-thumb { 
+    background: #ccc; 
+    border-radius: 4px; 
+}
+
+.tableWrapper::-webkit-scrollbar-thumb:hover { 
+    background: #bbb; 
+}
+
 .tableHeader th {
     position: sticky;
     top: 0;
     z-index: 10;
-    background-color: #005461; /* Color SÓLIDO vital para sticky header */
+    background-color: #005461;
     color: white;
     box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);
 }
 
-.folderIcon { color: #F8D775; font-size: 1.2rem; margin-right: 10px; }
-.fileIcon { color: #3BC1A8; font-size: 1.2rem; margin-right: 10px; }
+/* --- ICONOS Y ELEMENTOS DE TABLA --- */
+.folderIcon { 
+    color: #F8D775; 
+    font-size: 1.2rem; 
+    margin-right: 10px; 
+}
 
-/* BOTONES TABLA */
-.btnOpen { color: #005461; border-color: #005461; font-size: 0.85rem; }
-.btnOpen:hover { background-color: #005461; color: white; }
+.fileIcon { 
+    color: #3BC1A8; 
+    font-size: 1.2rem; 
+    margin-right: 10px; 
+}
 
-.btnDownload { color: #3BC1A8; border-color: #3BC1A8; font-size: 0.85rem; }
-.btnDownload:hover { background-color: #3BC1A8; color: white; }
+/* --- BOTONES DE ACCIÓN EN TABLA --- */
+.btnOpen { 
+    color: #005461; 
+    border-color: #005461; 
+    font-size: 0.85rem; 
+}
+
+.btnOpen:hover { 
+    background-color: #005461; 
+    color: white; 
+}
+
+.btnDownload { 
+    color: #3BC1A8; 
+    border-color: #3BC1A8; 
+    font-size: 0.85rem; 
+}
+
+.btnDownload:hover { 
+    background-color: #3BC1A8; 
+    color: white; 
+}

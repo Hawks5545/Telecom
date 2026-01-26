@@ -1,22 +1,55 @@
 // resources/js/components/Modules/Configuration/Configuration.jsx
 import React, { useState } from 'react';
 import styles from './Configuration.module.css';
+import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const Configuration = () => {
-    // Estado para la navegación interna
+    
     const [activeSection, setActiveSection] = useState('storage');
+    
+    const [alertConfig, setAlertConfig] = useState({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
+
+    const showAlert = (title, message) => {
+        setAlertConfig({ 
+            isOpen: true, 
+            type: 'success', 
+            title, 
+            message 
+        });
+    };
+
+    const closeAlert = () => {
+        setAlertConfig({ ...alertConfig, isOpen: false });
+    };
+
+    // --- MANEJADOR DE GUARDADO ---
+    const handleSave = (sectionName) => {
+        showAlert(
+            'Configuración Guardada', 
+            `Los cambios en la sección de ${sectionName} se han aplicado correctamente.`
+        );
+    };
 
     // --- SECCIÓN 1: ALMACENAMIENTO ---
     const renderStorageConfig = () => (
-        <div className={styles.mainContainer}>
+        <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4 className={styles.sectionSubtitle}>Gestión de Archivos</h4>
-                <button className="btn btn-primary btn-sm px-3">
+                
+                <button 
+                    className={styles.btnSave} 
+                    onClick={() => handleSave('Almacenamiento')}
+                >
                     <i className="bi bi-save me-2"></i>Guardar Cambios
                 </button>
             </div>
             
-            <form>
+            <form onSubmit={(e) => e.preventDefault()}>
                 {/* UBICACIÓN DE LOS ARCHIVOS */}
                 <div className="card p-4 mb-4 border-0 shadow-sm bg-light">
                     <h6 className="fw-bold text-dark mb-3">
@@ -29,7 +62,6 @@ const Configuration = () => {
                             <span className="input-group-text bg-white text-muted">
                                 <i className="bi bi-hdd-network"></i>
                             </span>
-                            {/* Dejamos el defaultValue como ejemplo de Linux, pero el admin puede borrarlo */}
                             <input 
                                 type="text" 
                                 className="form-control" 
@@ -71,10 +103,16 @@ const Configuration = () => {
 
     // --- SECCIÓN 2: SINCRONIZACIÓN ---
     const renderSyncConfig = () => (
-        <div className={styles.mainContainer}>
+        <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4 className={styles.sectionSubtitle}>Integridad de Datos</h4>
-                <button className="btn btn-primary btn-sm px-3">Guardar</button>
+                
+                <button 
+                    className={styles.btnSave} 
+                    onClick={() => handleSave('Sincronización')}
+                >
+                    <i className="bi bi-check-circle me-2"></i>Guardar
+                </button>
             </div>
 
             <div className="alert alert-info border-0 shadow-sm d-flex align-items-center">
@@ -116,12 +154,18 @@ const Configuration = () => {
         </div>
     );
 
-    // --- SECCIÓN 3: ALERTAS (Simplificada) ---
+    // --- SECCIÓN 3: ALERTAS ---
     const renderNotificationsConfig = () => (
-        <div className={styles.mainContainer}>
+        <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4 className={styles.sectionSubtitle}>Configuración de Alertas</h4>
-                <button className="btn btn-primary btn-sm px-3">Guardar</button>
+                
+                <button 
+                    className={styles.btnSave} 
+                    onClick={() => handleSave('Notificaciones')}
+                >
+                    <i className="bi bi-bell-fill me-2"></i>Guardar Configuración
+                </button>
             </div>
 
             <div className="card p-4 mb-4 border-0 shadow-sm bg-light">
@@ -167,7 +211,6 @@ const Configuration = () => {
         </div>
     );
 
-    // Renderizador condicional
     const renderContent = () => {
         switch (activeSection) {
             case 'storage': return renderStorageConfig();
@@ -178,13 +221,20 @@ const Configuration = () => {
     };
 
     return (
-        <div className={`container-fluid p-0 ${styles.mainContainer}`}>
-            {/* Título General */}
+        <div className={`container-fluid p-0 ${styles.fadeIn}`}>
+            
+            <CustomAlert 
+                isOpen={alertConfig.isOpen}
+                type={alertConfig.type}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={closeAlert}
+            />
+
             <h2 className={styles.pageTitle}>
                 <i className="bi bi-gear-wide-connected me-2"></i> Configuración
             </h2>
 
-            {/* Layout Flex: Sidebar + Contenido */}
             <div className={styles.layoutWrapper}>
                 
                 <aside className={styles.sidebar}>

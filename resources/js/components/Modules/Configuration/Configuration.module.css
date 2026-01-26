@@ -1,8 +1,12 @@
 /* resources/js/components/Modules/Configuration/Configuration.module.css */
 
-.mainContainer {
+.sectionContainer {
     animation: fadeIn 0.4s ease-out;
-    padding-bottom: 2rem;
+    padding-bottom: 1rem;
+}
+
+.fadeIn {
+    animation: fadeIn 0.5s ease-out;
 }
 
 @keyframes fadeIn {
@@ -67,8 +71,8 @@
 }
 
 .navItem.navActive:hover {
-    background-color: #004550; /* Un tono apenas más oscuro para dar feedback */
-    color: #ffffff !important; /* Mantiene el texto blanco */
+    background-color: #004550; 
+    color: #ffffff !important;
 }
 
 /* --- TARJETA DE CONTENIDO --- */
@@ -86,6 +90,33 @@
     font-weight: 700;
     font-size: 1.3rem;
     margin: 0;
+}
+
+/* --- BOTÓN GUARDAR --- */
+.btnSave {
+    background: #20c997; 
+    background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px; 
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 5px rgba(32, 201, 151, 0.25);
+}
+
+.btnSave:hover {
+    background: linear-gradient(135deg, #1cb68b 0%, #138496 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(32, 201, 151, 0.35);
+}
+
+.btnSave:active {
+    transform: translateY(0);
 }
 
 /* --- RESPONSIVE --- */

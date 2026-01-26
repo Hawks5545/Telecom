@@ -103,7 +103,7 @@
 
 /* CONSOLA DE RESULTADOS (LOG) */
 .consoleContainer {
-    background-color: #f8f9fa; /* Fondo gris claro tipo terminal suave */
+    background-color: #f8f9fa; 
     border: 1px solid #ced4da;
     border-radius: 8px;
     padding: 15px;
