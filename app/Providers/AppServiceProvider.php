@@ -3,26 +3,21 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\ResetPassword; 
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
+   
     public function register(): void
     {
-        //
+        
     }
-
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
-    {
-        // Personalizar el link del correo para que vaya a React
-        ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
-            return config('app.frontend_url', 'http://localhost:5173')."/reset-password?token=$token&email={$notifiable->getEmailForPasswordReset()}";
-        });
-    }
+{
+    ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
+        $frontendUrl = 'http://127.0.0.1:8000'; 
+        
+        return "{$frontendUrl}/reset-password/{$token}?email={$notifiable->getEmailForPasswordReset()}";
+    });
+}
 }

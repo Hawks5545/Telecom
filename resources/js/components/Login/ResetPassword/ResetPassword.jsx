@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom'; 
 import styles from './ResetPassword.module.css';
 
 const ResetPassword = () => {
+    const { token } = useParams(); 
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    
-    // Capturamos los datos de la URL
-    const token = searchParams.get('token');
+
     const email = searchParams.get('email');
 
     const [password, setPassword] = useState('');
@@ -23,53 +22,45 @@ const ResetPassword = () => {
         setMessage('');
 
         // --- VALIDACIONES DE SEGURIDAD ---
-        
-        // 1. Coincidencia
         if (password !== passwordConfirmation) {
             setError('Las contraseñas no coinciden.');
             setIsSubmitting(false);
             return;
         }
 
-        // 2. Longitud
         if (password.length < 8) {
             setError('La contraseña debe tener al menos 8 caracteres.');
             setIsSubmitting(false);
             return;
         }
 
-        // 3. Mayúscula (Regex: Al menos una letra de la A a la Z)
         if (!/[A-Z]/.test(password)) {
             setError('La contraseña debe incluir al menos una letra mayúscula.');
             setIsSubmitting(false);
             return;
         }
 
-        // 4. Número (Regex: Al menos un dígito del 0 al 9)
         if (!/[0-9]/.test(password)) {
             setError('La contraseña debe incluir al menos un número.');
             setIsSubmitting(false);
             return;
         }
 
-        // 5. Símbolo (Regex: Caracteres especiales)
         if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-            setError('La contraseña debe incluir al menos un signo o símbolo special (Ej: @, #, $).');
+            setError('La contraseña debe incluir al menos un signo o símbolo especial.');
             setIsSubmitting(false);
             return;
         }
 
-        // --- SI PASA TODO, ENVIAMOS AL BACKEND ---
-
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/reset-password', {
+            const response = await fetch('http://127.0.0.1:8000/api/password/reset', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
-                    token,
+                    token, 
                     email,
                     password,
                     password_confirmation: passwordConfirmation
@@ -79,12 +70,19 @@ const ResetPassword = () => {
             const data = await response.json();
 
             if (response.ok) {
-                setMessage(data.message);
-                // Esperamos un poco y redirigimos
-                setTimeout(() => navigate('/'), 3000);
+                // --- ACTUALIZACIÓN DE SEGURIDAD CRÍTICA ---
+                // 1. Limpiar rastro de sesiones previas (especialmente de Administrador)
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user_role');
+                
+                setMessage(data.message || '¡Contraseña restablecida con éxito! Redirigiendo al inicio de sesión...');
+                
+                // 2. Redirección forzada al Login (reemplazando el historial)
+                setTimeout(() => {
+                    navigate('/', { replace: true });
+                }, 3000);
             } else {
-                // Si Laravel devuelve error (ej: el token venció), lo mostramos
-                setError(data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : 'Error al restablecer.'));
+                setError(data.message || 'Error al restablecer la contraseña. El enlace podría haber expirado.');
             }
         } catch (err) {
             setError('Error de conexión con el servidor.');
@@ -100,7 +98,7 @@ const ResetPassword = () => {
                     <i className="bi bi-shield-lock-fill" style={{ fontSize: '3rem', color: '#14b8a6' }}></i>
                 </div>
                 <h2 className={styles.title}>Nueva Contraseña</h2>
-                <p className={styles.subtitle}>Introduce tu nueva contraseña segura.</p>
+                <p className={styles.subtitle}>Introduce tu nueva contraseña segura para {email}.</p>
 
                 {message && (
                     <div className={`${styles.alert} ${styles.alertSuccess}`}> {message} </div>
@@ -110,7 +108,6 @@ const ResetPassword = () => {
                 )}
 
                 <form onSubmit={handleSubmit}>
-                    {/* Campo Oculto para Email (Visualmente) */}
                     <div className={styles.inputGroup}>
                         <label className={styles.label}>Correo Electrónico</label>
                         <input 
@@ -118,7 +115,7 @@ const ResetPassword = () => {
                             className={styles.input} 
                             value={email || ''} 
                             disabled 
-                            style={{ backgroundColor: '#e5e7eb', cursor: 'not-allowed' }}
+                            style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
                         />
                     </div>
 
@@ -131,6 +128,7 @@ const ResetPassword = () => {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             placeholder="Mínimo 8 caracteres"
+                            disabled={isSubmitting}
                         />
                     </div>
 
@@ -143,6 +141,7 @@ const ResetPassword = () => {
                             onChange={(e) => setPasswordConfirmation(e.target.value)}
                             required
                             placeholder="Repite la contraseña"
+                            disabled={isSubmitting}
                         />
                     </div>
 

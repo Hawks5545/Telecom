@@ -3,18 +3,16 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use App\Models\Role; // <--- Importante importar el modelo Role
+use App\Models\Role; 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
+   
     public function run(): void
     {
-        // 1. CREAR ROLES PRIMORDIALES
+        //  CREAR ROLES PRINCIPALES
         $roles = [
             [
                 'name' => 'admin', 
@@ -41,9 +39,7 @@ class DatabaseSeeder extends Seeder
         foreach ($roles as $role) {
             Role::updateOrCreate(['name' => $role['name']], $role);
         }
-
-        // 2. CREAR USUARIO ADMINISTRADOR
-        // Usamos updateOrCreate para evitar errores si ejecutas el seeder varias veces
+        // CREAR USUARIO ADMINISTRADOR
         User::updateOrCreate(
             ['email' => env('ADMIN_EMAIL', 'admin@ejemplo.com')],
             [

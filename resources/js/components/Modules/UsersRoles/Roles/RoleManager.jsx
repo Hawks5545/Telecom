@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // Agregamos useEffect
+import React, { useState, useEffect } from 'react';
 import styles from './RoleManager.module.css';
 
 // Importamos Modales
@@ -27,7 +27,7 @@ const RoleManager = () => {
         onConfirm: null
     });
 
-    // --- ESTADO DE DATOS (Ahora vienen de Laravel) ---
+    // --- ESTADO DE DATOS (Vienen de Laravel) ---
     const [roles, setRoles] = useState([]);
 
     // --- CARGAR ROLES DESDE LA API ---
@@ -73,7 +73,7 @@ const RoleManager = () => {
 
     // --- ACCIONES LÓGICAS ---
 
-    // 1. ELIMINAR ROL (Backend)
+    // 1. ELIMINAR ROL (Confirmación Visual)
     const handleDeleteClick = (role) => {
         showAlert(
             'delete',
@@ -83,20 +83,29 @@ const RoleManager = () => {
         );
     };
 
+    // --- FUNCIÓN REAL ELIMINAR (BACKEND) ---
     const executeDelete = async (roleId) => {
         try {
             const token = localStorage.getItem('auth_token');
             const response = await fetch(`http://127.0.0.1:8000/api/roles/${roleId}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
             });
+
+            const data = await response.json(); // Leemos el mensaje del backend
 
             if (response.ok) {
                 fetchRoles(); // Recargar lista
                 showAlert('success', 'Rol Eliminado', 'El rol ha sido removido correctamente.');
+            } else {
+                // Muestra el error del backend (ej: "No puedes borrar este rol porque hay usuarios asignados")
+                showAlert('error', 'Acción Denegada', data.message || 'No se pudo eliminar el rol.');
             }
         } catch (error) {
-            showAlert('error', 'Error', 'No se pudo eliminar el rol.');
+            showAlert('error', 'Error', 'No se pudo conectar con el servidor.');
         }
     };
 
@@ -137,13 +146,15 @@ const RoleManager = () => {
                     <thead className={styles.tableHeader}>
                         <tr>
                             <th className="ps-4 py-3" style={{width: '20%'}}>Nombre del Rol</th>
+                            {/* NUEVA COLUMNA DE PERMISOS */}
+                            <th className="py-3" style={{width: '40%'}}>Permisos Habilitados</th>
                             <th className="py-3" style={{width: '25%'}}>Descripción</th>
                             <th className="py-3 text-center" style={{width: '15%'}}>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         {isLoading ? (
-                            <tr><td colSpan="3" className="text-center py-4">Cargando roles...</td></tr>
+                            <tr><td colSpan="4" className="text-center py-4">Cargando roles...</td></tr>
                         ) : (
                             roles.map((role) => (
                                 <tr key={role.id}>
@@ -151,7 +162,40 @@ const RoleManager = () => {
                                         <i className="bi bi-shield-fill me-2 text-secondary"></i>
                                         {role.display_name}
                                     </td>
+                                    
+                                    {/* VISUALIZACIÓN DE PERMISOS */}
+                                    <td>
+                                        {role.name === 'admin' ? (
+                                            <span className="badge bg-success">
+                                                <i className="bi bi-star-fill me-1"></i>
+                                                Acceso Total
+                                            </span>
+                                        ) : (
+                                            <div style={{display: 'flex', flexWrap: 'wrap', gap: '5px'}}>
+                                                {role.permissions && role.permissions.length > 0 ? (
+                                                    <>
+                                                        {/* Mostramos los primeros 3 permisos */}
+                                                        {role.permissions.slice(0, 3).map((p, i) => (
+                                                            <span key={i} className="badge bg-light text-dark border">
+                                                                {p}
+                                                            </span>
+                                                        ))}
+                                                        {/* Si hay más de 3, mostramos un contador */}
+                                                        {role.permissions.length > 3 && (
+                                                            <span className="badge bg-secondary" title={role.permissions.slice(3).join(', ')}>
+                                                                +{role.permissions.length - 3}
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-muted small fst-italic">Sin permisos asignados</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </td>
+
                                     <td className="text-muted small">{role.description || 'Sin descripción'}</td>
+                                    
                                     <td className="text-center">
                                         <span 
                                             className={`${styles.actionLink} ${styles.editLink}`} 
@@ -160,7 +204,6 @@ const RoleManager = () => {
                                             Editar
                                         </span>
                                         
-                                        {/* No permitimos borrar el Admin maestro */}
                                         {role.name !== 'admin' && (
                                             <span 
                                                 className={`${styles.actionLink} ${styles.deleteLink}`}

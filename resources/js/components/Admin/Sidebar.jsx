@@ -3,10 +3,13 @@ import styles from './Sidebar.module.css';
 
 const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
 
-    // 1. LEER EL ROL DEL USUARIO
-    // Recuperamos los datos que guardaste en el Login
+    // 1. LEER DATOS Y PERMISOS DEL USUARIO
     const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
-    const role = userData.role; // 'admin', 'senior', 'junior', 'analista'
+    const role = userData.role; 
+    
+    // Aquí está la magia: Obtenemos el array de permisos que envió el AuthController
+    // Si no existe, usamos un array vacío para evitar errores.
+    const userPerms = userData.permissions || [];
 
     const handleNavClick = (viewName, e) => {
         e.preventDefault(); 
@@ -15,26 +18,17 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
         }
     };
 
-    // 2. LÓGICA DE PERMISOS (El Cerebro de la Seguridad) 🧠
-    const canSee = (moduleName) => {
-        // Regla 1: El Administrador ve TODO
-        if (role === 'admin') return true;
+    // 2. LÓGICA DE PERMISOS DINÁMICA (RBAC Real) 🧠
+    // Esta función verifica si el usuario tiene el permiso específico en su lista.
+    const canSee = (permissionName) => {
+        // Si el usuario es super-admin (tiene comodín '*') o tiene el permiso exacto
+        return userPerms.includes('*') || userPerms.includes(permissionName);
+    };
 
-        // Regla 2: Senior y Junior
-        // Ven todo MENOS 'users' (Usuarios) y 'audits' (Auditorías)
-        if (role === 'senior' || role === 'junior') {
-            const forbiddenModules = ['users', 'audits'];
-            return !forbiddenModules.includes(moduleName);
-        }
-
-        // Regla 3: Analista
-        // SOLO ve 'search', 'folders' e 'indexing'
-        if (role === 'analista') {
-            const allowedModules = ['search', 'folders', 'indexing'];
-            return allowedModules.includes(moduleName);
-        }
-
-        return false; // Por seguridad, si no tiene rol, no ve nada.
+    // Nota: Para el módulo de Usuarios, a veces solo queremos que entre el Admin,
+    // o alguien con un permiso explícito de "Gestión de Usuarios".
+    const canSeeUsers = () => {
+        return role === 'admin' || userPerms.includes('Gestión de Usuarios');
     };
 
     return (
@@ -47,7 +41,6 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                         <i className="bi bi-soundwave"></i>
                     </div>
                     <span className={styles.linkText}>TeleCom</span>
-                    {/* (Opcional) Mostrar el rol debajo del logo para que sepas quién eres */}
                     <div style={{fontSize: '0.7rem', color: '#aaa', marginTop: '5px', textTransform: 'uppercase'}}>
                         {role}
                     </div>
@@ -57,7 +50,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                 <ul className={styles.navList}>
                     
                     {/* 1. Dashboard */}
-                    {canSee('dashboard') && (
+                    {canSee('Dashboard') && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 
@@ -71,7 +64,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                     )}
 
                     {/* 2. Búsqueda de Grabaciones */}
-                    {canSee('search') && (
+                    {canSee('Búsqueda de Grabaciones') && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 
@@ -85,7 +78,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                     )}
 
                     {/* 3. Gestor de Carpetas */}
-                    {canSee('folders') && (
+                    {canSee('Gestor de Carpetas') && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 
@@ -99,7 +92,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                     )}
 
                     {/* 4. Indexación */}
-                    {canSee('indexing') && (
+                    {canSee('Indexación') && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 
@@ -113,7 +106,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                     )}
 
                     {/* 5. Auditorías */}
-                    {canSee('audits') && (
+                    {canSee('Auditorías') && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 
@@ -127,7 +120,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                     )}
 
                     {/* 6. Reportes */}
-                    {canSee('reports') && (
+                    {canSee('Reportes') && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 
@@ -140,8 +133,8 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                         </li>
                     )}
 
-                    {/* 7. Usuarios */}
-                    {canSee('users') && (
+                    {/* 7. Usuarios y Roles (Lógica especial para Admin) */}
+                    {canSeeUsers() && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 
@@ -154,8 +147,8 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                         </li>
                     )}
 
-                    {/* 8. Configuración */}
-                    {canSee('configuration') && ( // Asumo que configuración es general, si Analista no debe verla, usa 'reports' logic o crea una nueva
+                    {/* 8. Configuración (Solo Admin) */}
+                    {role === 'admin' && (
                         <li className={styles.navItem}>
                             <a 
                                 href="#" 

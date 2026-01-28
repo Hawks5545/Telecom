@@ -5,23 +5,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens; 
+use Laravel\Sanctum\HasApiTokens;
+use App\Models\Role; // <--- 1. IMPORTANTE: Importamos el modelo Role
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
+
     protected $fillable = [
         'name',
         'email',
-        'cedula', 
-        'role',   
+        'cedula',
+        'role',
+        'role_id',    
         'password',
         'is_active', 
+        'email_verified_at',
     ];
 
-    /**
-     * Ocultar la contraseña para que no salga en las respuestas JSON.
-     */
     protected $hidden = [
         'password',
         'remember_token',
@@ -29,5 +30,12 @@ class User extends Authenticatable
 
     protected $casts = [
         'password' => 'hashed',
+        'email_verified_at' => 'datetime',
     ];
+
+    // --- 4. FUNCIÓN DE RELACIÓN (Soluciona el error "undefined relationship") ---
+    public function assignedRole()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
 }

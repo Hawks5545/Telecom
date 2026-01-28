@@ -1,27 +1,95 @@
-// resources/js/components/Modules/UserRoles/EditRoleModal/EditRoleModal.jsx
 import React, { useEffect, useState } from 'react';
 import styles from './EditRoleModal.module.css';
 
 const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => { 
+    // Si no está abierto o no hay rol, no renderizamos nada
     if (!isOpen || !role) return null;
 
-    const isProtectedAdmin = role.nombre === 'Administrador';
+    // 1. CORRECCIÓN: Usamos 'name' (interno) para detectar al admin, no el nombre visible
+    const isProtectedAdmin = role.name === 'admin';
 
-    const [roleData, setRoleData] = useState({ desc: '', permisos: [] });
+    const [formData, setFormData] = useState({
+        display_name: '',
+        description: ''
+    });
 
+    const [selectedPerms, setSelectedPerms] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    // LISTA MAESTRA DE PERMISOS (Debe ser idéntica a la de RoleModal)
+    const availablePermissions = [
+        "Dashboard",
+        "Búsqueda de Grabaciones",
+        "Gestor de Carpetas",
+        "Indexación",
+        "Auditorías",
+        "Reportes"
+    ];
+
+    // 2. CARGAR DATOS: Sincronizamos con lo que viene de Laravel
     useEffect(() => {
         if (role) {
-            setRoleData({ desc: role.desc, permisos: role.permisos });
+            setFormData({
+                // CORRECCIÓN: Laravel envía 'display_name' y 'description'
+                display_name: role.display_name || '', 
+                description: role.description || ''
+            });
+            // CORRECCIÓN: Laravel envía 'permissions' (array o null)
+            setSelectedPerms(role.permissions || []);
         }
     }, [role]);
 
-    const handleSave = () => {
-        // Lógica Backend...
-        
-        if (onSuccess) {
-            onSuccess();
+    const handleChange = (e) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
+    };
+
+    const handleCheckChange = (perm) => {
+        if (selectedPerms.includes(perm)) {
+            setSelectedPerms(selectedPerms.filter(p => p !== perm));
         } else {
-            onClose();
+            setSelectedPerms([...selectedPerms, perm]);
+        }
+    };
+
+    // 3. GUARDAR CAMBIOS (Lógica Backend)
+    const handleSave = async () => {
+        setIsSubmitting(true);
+        setError('');
+
+        const token = localStorage.getItem('auth_token');
+
+        try {
+            const response = await fetch(`http://127.0.0.1:8000/api/roles/${role.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    display_name: formData.display_name,
+                    description: formData.description,
+                    permisos: selectedPerms // Enviamos 'permisos' porque así lo espera tu Controller
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                if (onSuccess) onSuccess(); // Recarga la tabla en el padre
+                onClose(); // Cierra el modal
+            } else {
+                setError(data.message || 'Error al actualizar el rol.');
+            }
+        } catch (err) {
+            console.error(err);
+            setError('Error de conexión con el servidor.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -30,23 +98,37 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
             <div className={styles.modalContent}>
                 <div className={styles.modalHeader}>
                     <h5 className={styles.modalTitle}>
-                        <i className="bi bi-shield-check me-2"></i>Editar Rol
+                        <i className="bi bi-pencil-square me-2"></i>Editar Rol
                     </h5>
-                    <button className={styles.btnClose} onClick={onClose}><i className="bi bi-x-lg"></i></button>
+                    <button className={styles.btnClose} onClick={onClose} disabled={isSubmitting}>
+                        <i className="bi bi-x-lg"></i>
+                    </button>
                 </div>
 
                 <div className={styles.modalBody}>
+                    {error && <div className="alert alert-danger p-2 small text-center">{error}</div>}
+
                     <form className="row g-3" onSubmit={(e) => e.preventDefault()}>
                         <div className="col-12">
                             <label className={styles.label}>Nombre del Rol</label>
-                            <input type="text" className={`form-control ${styles.readOnlyInput}`} value={role.nombre} disabled />
+                            <input 
+                                type="text" 
+                                name="display_name"
+                                className={`form-control ${isProtectedAdmin ? styles.readOnlyInput : ''}`} 
+                                value={formData.display_name} 
+                                onChange={handleChange}
+                                disabled={isProtectedAdmin} // El nombre del admin no se toca
+                            />
                         </div>
                         
                         <div className="col-12">
                             <label className={styles.label}>Descripción</label>
-                            <textarea className="form-control" rows="2" 
-                                defaultValue={roleData.desc} 
-                                disabled={isProtectedAdmin} 
+                            <textarea 
+                                name="description"
+                                className="form-control" 
+                                rows="2" 
+                                value={formData.description} 
+                                onChange={handleChange}
                             ></textarea>
                         </div>
                         
@@ -54,35 +136,29 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
                             <label className={styles.label}>Permisos Asignados</label>
                             
                             {isProtectedAdmin ? (
-                                <div className={styles.adminLocked}>
-                                    <i className="bi bi-info-circle-fill fs-4"></i>
+                                <div className="alert alert-warning d-flex align-items-center mt-2">
+                                    <i className="bi bi-lock-fill fs-4 me-3"></i>
                                     <div>
                                         <strong>Rol Protegido.</strong><br/>
-                                        El rol de Administrador tiene acceso total por defecto y no puede ser modificado.
+                                        El Administrador tiene acceso total por defecto.
                                     </div>
                                 </div>
                             ) : (
-                                <div className={styles.permissionsGrid}>
-                                    <div className="form-check">
-                                        <input className="form-check-input" type="checkbox" id="ep1" defaultChecked={roleData.permisos.includes('Buscar Grabaciones')} />
-                                        <label className="form-check-label small" htmlFor="ep1">Buscar Grabaciones</label>
-                                    </div>
-                                    <div className="form-check">
-                                        <input className="form-check-input" type="checkbox" id="ep3" defaultChecked={roleData.permisos.includes('Descargar ZIP')} />
-                                        <label className="form-check-label small" htmlFor="ep3">Descargar ZIP</label>
-                                    </div>
-                                    <div className="form-check">
-                                        <input className="form-check-input" type="checkbox" id="ep4" defaultChecked={roleData.permisos.includes('Ver Reportes')} />
-                                        <label className="form-check-label small" htmlFor="ep4">Ver Reportes</label>
-                                    </div>
-                                    <div className="form-check">
-                                        <input className="form-check-input" type="checkbox" id="ep5" defaultChecked={roleData.permisos.includes('Auditoría')} />
-                                        <label className="form-check-label small" htmlFor="ep5">Auditoría</label>
-                                    </div>
-                                    <div className="form-check">
-                                        <input className="form-check-input" type="checkbox" id="ep6" defaultChecked={roleData.permisos.includes('Gestión de Usuarios')} />
-                                        <label className="form-check-label small" htmlFor="ep6">Gestión de Usuarios</label>
-                                    </div>
+                                <div className={styles.permissionsGrid} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    {availablePermissions.map((perm, index) => (
+                                        <div className="form-check" key={index}>
+                                            <input 
+                                                className="form-check-input" 
+                                                type="checkbox" 
+                                                id={`edit-perm-${index}`}
+                                                checked={selectedPerms.includes(perm)}
+                                                onChange={() => handleCheckChange(perm)}
+                                            />
+                                            <label className="form-check-label small" htmlFor={`edit-perm-${index}`}>
+                                                {perm}
+                                            </label>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -90,10 +166,16 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
                 </div>
 
                 <div className={styles.modalFooter}>
-                    <button className={styles.btnCancel} onClick={onClose}>Cancelar</button>
-                    {!isProtectedAdmin && (
-                        <button className={styles.btnSave} onClick={handleSave}>Guardar Cambios</button>
-                    )}
+                    <button className={styles.btnCancel} onClick={onClose} disabled={isSubmitting}>
+                        Cancelar
+                    </button>
+                    <button 
+                        className={styles.btnSave} 
+                        onClick={handleSave} 
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+                    </button>
                 </div>
             </div>
         </div>

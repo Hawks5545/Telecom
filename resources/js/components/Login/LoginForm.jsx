@@ -10,8 +10,8 @@ const LoginForm = ({ onBack, onLogin }) => {
     // Estados para la interfaz
     const [showPassword, setShowPassword] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [error, setError] = useState(null); // Para mostrar errores rojos
-    const [isLoading, setIsLoading] = useState(false); // Para deshabilitar botón mientras carga
+    const [error, setError] = useState(null); 
+    const [isLoading, setIsLoading] = useState(false); 
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -19,6 +19,9 @@ const LoginForm = ({ onBack, onLogin }) => {
         setIsLoading(true);
 
         try {
+            // 0. Limpieza preventiva
+            localStorage.clear();
+
             // 1. Petición al Backend Laravel
             const response = await fetch('http://127.0.0.1:8000/api/login', {
                 method: 'POST',
@@ -36,20 +39,26 @@ const LoginForm = ({ onBack, onLogin }) => {
 
             // 2. Verificar si el login fue exitoso
             if (response.ok) {
-                // Guardamos el token en el navegador
+                // --- AQUÍ ESTÁ LA CLAVE DEL SISTEMA DE ROLES ---
+                // Guardamos el token
                 localStorage.setItem('auth_token', data.token);
-                localStorage.setItem('user_data', JSON.stringify(data.user));
                 
-                // Avisamos al componente padre que entramos
-                onLogin(); 
+                // Guardamos el objeto usuario COMPLETO (que trae 'role' y 'permissions')
+                // Usamos JSON.stringify porque localStorage solo guarda texto
+                if (data.user) {
+                    localStorage.setItem('user_data', JSON.stringify(data.user));
+                }
+
+                // Avisamos al componente padre (LoginContainer) que entramos
+                if (onLogin) onLogin(); 
             } else {
-                // Si falló (ej: clave errónea), mostramos el mensaje del backend
+                // Si falló, mostramos el mensaje del backend
                 setError(data.message || 'Credenciales incorrectas');
             }
 
         } catch (error) {
             console.error("Error de conexión:", error);
-            setError('No se pudo conectar con el servidor (Backend caído)');
+            setError('No se pudo conectar con el servidor. Verifica que Laravel esté corriendo.');
         } finally {
             setIsLoading(false);
         }
@@ -65,15 +74,15 @@ const LoginForm = ({ onBack, onLogin }) => {
 
             {/* Navegación Superior */}
             <button className={styles.backButton} onClick={onBack}>
-                <i className="bi bi-arrow-left"></i> Regresar
+                <i className="bi bi-arrow-left me-2"></i> Regresar
             </button>
 
             <h3 className={styles.loginTitle}>Bienvenido</h3>
 
-            {/* Mensaje de Error (Si existe) */}
+            {/* Mensaje de Error */}
             {error && (
-                <div style={{ color: 'red', textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                    <i className="bi bi-exclamation-circle me-2"></i>
+                <div className="alert alert-danger text-center p-2 mb-3" style={{ fontSize: '0.9rem' }}>
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
                     {error}
                 </div>
             )}
@@ -87,8 +96,9 @@ const LoginForm = ({ onBack, onLogin }) => {
                         className={styles.floatingInput}
                         placeholder=" " 
                         required
-                        value={email} // Conectado al estado
-                        onChange={(e) => setEmail(e.target.value)} // Actualiza el estado
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={isLoading}
                     />
                     <label htmlFor="emailInput" className={styles.floatingLabel}>
                         Correo electrónico
@@ -103,8 +113,9 @@ const LoginForm = ({ onBack, onLogin }) => {
                         className={styles.floatingInput}
                         placeholder=" " 
                         required
-                        value={password} // Conectado al estado
-                        onChange={(e) => setPassword(e.target.value)} // Actualiza el estado
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isLoading}
                     />
                     <label htmlFor="passwordInput" className={styles.floatingLabel}>
                         Contraseña
@@ -115,6 +126,7 @@ const LoginForm = ({ onBack, onLogin }) => {
                         className={styles.passwordToggle}
                         onClick={() => setShowPassword(!showPassword)}
                         tabIndex="-1"
+                        disabled={isLoading}
                     >
                         <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
                     </button>
@@ -126,6 +138,7 @@ const LoginForm = ({ onBack, onLogin }) => {
                         type="button"
                         className={styles.forgotLink}
                         onClick={() => setIsModalOpen(true)}
+                        disabled={isLoading}
                     >
                         ¿Olvidaste tu contraseña?
                     </button>
@@ -136,10 +149,12 @@ const LoginForm = ({ onBack, onLogin }) => {
                     <button 
                         type="submit" 
                         className={styles.submitButton}
-                        disabled={isLoading} // Evita doble clic
+                        disabled={isLoading}
                     >
-                        {isLoading ? 'Cargando...' : (
-                            <>Entrar <i className="bi bi-box-arrow-in-right ms-2"></i></>
+                        {isLoading ? (
+                            <span><span className="spinner-border spinner-border-sm me-2"></span>Cargando...</span>
+                        ) : (
+                            <span>Entrar <i className="bi bi-box-arrow-in-right ms-2"></i></span>
                         )}
                     </button>
                 </div>

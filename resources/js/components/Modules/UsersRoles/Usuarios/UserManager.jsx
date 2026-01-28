@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // <--- Agregamos useEffect
+import React, { useState, useEffect } from 'react'; 
 import styles from './UserManager.module.css';
 
 // Importamos los modales (Hijos)
@@ -50,16 +50,12 @@ const UserManager = () => {
             if (response.ok) {
                 const data = await response.json();
                 
-                // TRANSFORMACIÓN DE DATOS:
-                // Laravel nos da "name" completo y roles en código ("admin").
-                // Tu tabla quiere "nombre", "apellido" y roles bonitos ("Administrador").
+                // TRANSFORMACIÓN DE DATOS CON LÓGICA DE ESTADOS
                 const formattedUsers = data.map(u => {
-                    // Separar nombre y apellido (Básico)
                     const nameParts = u.name.split(' ');
                     const nombre = nameParts[0];
                     const apellido = nameParts.slice(1).join(' ') || '';
 
-                    // Mapa de Roles para que se vean bonitos
                     const roleDisplay = {
                         'admin': 'Administrador',
                         'senior': 'Senior',
@@ -67,16 +63,37 @@ const UserManager = () => {
                         'analista': 'Analista'
                     };
 
+                    // --- MÁQUINA DE ESTADOS ---
+                    let estadoLabel = 'Desconocido';
+                    let estadoClass = styles.statusInactive; // Por defecto rojo
+
+                    if (u.is_active === 0) {
+                        estadoLabel = 'Inactivo'; // Bloqueado por Admin
+                        estadoClass = styles.statusInactive; 
+                    } else if (u.email_verified_at === null) {
+                        estadoLabel = 'Pendiente'; // No ha activado cuenta
+                        estadoClass = styles.statusPending; // (Debes agregar este estilo CSS, color gris/amarillo)
+                    } else {
+                        estadoLabel = 'Activo'; // Todo OK
+                        estadoClass = styles.statusActive; 
+                    }
+
                     return {
                         id: u.id,
                         nombre: nombre,
                         apellido: apellido,
-                        rol: roleDisplay[u.role] || u.role, // Si no está en el mapa, muestra el original
-                        docTipo: 'C.C', // Dato que no guardamos en DB aún, lo dejamos fijo o lo traes si agregas columna
+                        rol: u.assigned_role ? u.assigned_role.display_name : (roleDisplay[u.role] || u.role),
+                        docTipo: 'C.C', 
                         docNum: u.cedula || 'N/A',
                         correo: u.email,
-                        fecha: new Date(u.created_at).toLocaleDateString(), // Formato fecha
-                        estado: u.is_active ? 'Activo' : 'Inactivo'
+                        fecha: new Date(u.created_at).toLocaleDateString(),
+                        
+                        // Estado Lógico y Visual
+                        estado: estadoLabel,
+                        estadoClass: estadoClass,
+                        
+                        // Datos crudos para el modal de edición
+                        originalData: u 
                     };
                 });
 
@@ -115,43 +132,64 @@ const UserManager = () => {
     // --- ACCIONES DEL SISTEMA ---
 
     const handleOpenEdit = (user) => {
-        setSelectedUser(user);
+        // Pasamos los datos originales (crudos) para que el modal funcione bien
+        setSelectedUser(user.originalData);
         setShowEditModal(true);
     };
 
-    // 1. ELIMINAR (Solo visual por ahora, falta backend delete)
+    // 1. ELIMINAR (Confirmación Visual)
     const handleDeleteClick = (user) => {
         showAlert(
             'delete',
             '¿Estás seguro?',
-            `Vas a eliminar al usuario ${user.nombre} ${user.apellido}.`,
-            () => executeDelete(user.id)
+            `Vas a eliminar al usuario ${user.nombre} ${user.apellido}. Esta acción no se puede deshacer.`,
+            () => executeDelete(user.id) 
         );
     };
 
-    const executeDelete = (userId) => {
-        // Aquí deberías hacer fetch DELETE a la API
-        setUsers(users.filter(u => u.id !== userId));
-        setTimeout(() => {
-            showAlert('success', '¡Eliminado!', 'El usuario ha sido eliminado correctamente.');
-        }, 300);
+    // --- FUNCIÓN REAL DE ELIMINAR ---
+    const executeDelete = async (userId) => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch(`http://127.0.0.1:8000/api/users/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setUsers(users.filter(u => u.id !== userId));
+                showAlert('success', '¡Eliminado!', 'El usuario ha sido eliminado correctamente.');
+            } else {
+                showAlert('error', 'No se pudo eliminar', data.message || 'Ocurrió un error desconocido.');
+            }
+
+        } catch (error) {
+            console.error(error);
+            showAlert('error', 'Error de Conexión', 'No se pudo conectar con el servidor.');
+        }
     };
 
     // 2. CREAR (Éxito al registrar)
     const handleUserCreated = () => {
         setShowCreateModal(false); 
-        fetchUsers(); // <--- RECARGAMOS LA LISTA REAL DESDE LA BD
+        fetchUsers(); 
         showAlert(
             'success', 
             'Registro Exitoso', 
-            'El nuevo usuario ha sido creado y notificado correctamente.'
+            'El usuario ha sido creado. Estado: PENDIENTE hasta activar cuenta.'
         );
     };
 
     // 3. EDITAR (Éxito al guardar cambios)
     const handleUserUpdated = () => {
         setShowEditModal(false); 
-        fetchUsers(); // <--- RECARGAMOS LA LISTA REAL
+        fetchUsers(); 
         showAlert(
             'success', 
             'Cambios Guardados', 
@@ -217,7 +255,8 @@ const UserManager = () => {
                                     <td className="small">{user.correo}</td>
                                     <td className="small text-muted">{user.fecha}</td>
                                     <td>
-                                        <span className={user.estado === 'Activo' ? styles.statusActive : styles.statusInactive}>
+                                        {/* Usamos la clase dinámica (Gris, Verde, Rojo) */}
+                                        <span className={user.estadoClass}>
                                             {user.estado}
                                         </span>
                                     </td>
@@ -229,8 +268,7 @@ const UserManager = () => {
                                             Editar
                                         </span>
                                         
-                                        {/* Protegemos que no se pueda borrar a los Admins (opcional) */}
-                                        {user.rol !== 'Administrador' && (
+                                        {user.id !== 1 && (
                                             <span 
                                                 className={`${styles.actionLink} ${styles.deleteLink}`}
                                                 onClick={() => handleDeleteClick(user)}
@@ -262,8 +300,6 @@ const UserManager = () => {
                 </div>
             )}
 
-            {/* --- MODALES --- */}
-            
             <UserModal 
                 isOpen={showCreateModal} 
                 onClose={() => setShowCreateModal(false)}
