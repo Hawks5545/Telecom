@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\IndexingController; // <--- ¡AGREGA ESTA LÍNEA!
 
 // --- RUTAS PÚBLICAS ---
 Route::post('/login', [AuthController::class, 'login']);
@@ -16,6 +17,15 @@ Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 // --- RUTAS PROTEGIDAS ---
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    //Indexacion
+    // Indexacion (Usando ruta completa para evitar errores de importación)
+    Route::post('/indexing/scan', [\App\Http\Controllers\IndexingController::class, 'scanFolder']);
+    Route::post('/indexing/run', [\App\Http\Controllers\IndexingController::class, 'runIndexing']);
+
+    //Gestor de carpetas
+    Route::get('/folder-manager/items', [App\Http\Controllers\FolderManagerController::class, 'getItems']);
+    Route::get('/folder-manager/download/{id}', [App\Http\Controllers\FolderManagerController::class, 'downloadItem']);
     
     // Usuarios
     Route::get('/users', [UserController::class, 'index']);
@@ -29,6 +39,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
     Route::put('/roles/{id}', [RoleController::class, 'update']);
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
+
+
+    //Confugiracion
+    Route::get('/config/storage', [App\Http\Controllers\ConfigurationController::class, 'getStorageLocations']);
+    Route::post('/config/storage', [App\Http\Controllers\ConfigurationController::class, 'addStorageLocation']);
+    Route::delete('/config/storage/{id}', [App\Http\Controllers\ConfigurationController::class, 'deleteStorageLocation']);
+    Route::put('/config/storage/{id}/toggle', [App\Http\Controllers\ConfigurationController::class, 'toggleStorageLocation']);
+    Route::get('/config/settings', [App\Http\Controllers\ConfigurationController::class, 'getSettings']);
+    Route::post('/config/settings', [App\Http\Controllers\ConfigurationController::class, 'saveSettings']);
 
     Route::get('/user', function (Request $request) {
         return $request->user();

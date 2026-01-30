@@ -23,6 +23,10 @@ import Configuration from './components/Modules/Configuration/Configuration';
 
 const LoginWrapper = () => {
     const navigate = useNavigate();
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+        return <Navigate to="/dashboard" replace />;
+    }
 
     const handleLoginSuccess = () => {
         navigate('/dashboard', { replace: true });

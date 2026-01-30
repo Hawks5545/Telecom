@@ -16,13 +16,13 @@ class AuthController extends Controller
     // Función para Iniciar Sesión
     public function login(Request $request)
     {
-        // 1. Validar que envíen los datos
+        // 1. Validar datos de entrada
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
         ]);
 
-        // 2. Buscar el usuario por correo
+        // 2. Buscar el usuario
         $user = User::where('email', $request->email)->first();
 
         // 3. Verificar contraseña y existencia
@@ -32,48 +32,55 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // --- NUEVA LÓGICA DE ESTADOS ---
+        // --- VALIDACIONES DE ESTADO ---
 
-        // 4. Verificar si está BLOQUEADO por el administrador (Inactivo)
+        // 4. Verificar si está BLOQUEADO (is_active = 0)
         if ($user->is_active == 0) {
             return response()->json([
                 'message' => 'Tu usuario está bloqueado por el administrador. Contacta a soporte.'
             ], 403);
         }
 
-        // 5. Verificar si está PENDIENTE (No ha verificado correo/creado contraseña)
+        // 5. Verificar si está PENDIENTE (Sin verificar correo)
         if ($user->email_verified_at === null) {
             return response()->json([
                 'message' => 'Tu cuenta está pendiente. Por favor revisa tu correo y crea tu contraseña para activarla.'
             ], 403);
         }
 
-        // --- CARGA DE ROLES ---
-        $user->load('assignedRole'); 
+        // --- CARGA DE ROLES (NORMALIZACIÓN) ---
+        
+        // Cargamos la relación definida en User.php (función role())
+        $user->load('role'); 
 
-        $rolInterno = null; 
-        $rolVisible = null; 
+        // Valores por defecto por seguridad
+        $rolInterno = 'analista'; 
+        $rolVisible = 'Analista'; 
         $permisos = [];
 
-        if ($user->assignedRole) {
-            $rolInterno = $user->assignedRole->name;
-            $rolVisible = $user->assignedRole->display_name; 
+        // Si el usuario tiene un rol asignado en la BD, sacamos los datos de ahí
+        if ($user->role) {
+            $rolInterno = $user->role->name;         // Ej: 'admin'
+            $rolVisible = $user->role->display_name; // Ej: 'Administrador'
 
-            // Permisos
+            // Lógica de Permisos
             if ($rolInterno === 'admin') {
-                $permisos = ['*'];
+                $permisos = ['*']; // Admin tiene todo
             } else {
-                $permisos = $user->assignedRole->permissions ?? [];
+                $permisos = $user->role->permissions ?? [];
             }
         }
 
+        // 6. Respuesta al Frontend
         return response()->json([
             'message' => 'Bienvenido al sistema TeleCom',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'role' => $rolInterno,         
+                
+                // AQUÍ LA MAGIA: El frontend recibe 'admin', pero lo sacamos de la tabla roles
+                'role' => $rolInterno,          
                 'role_display' => $rolVisible, 
                 'permissions' => $permisos,
             ],
@@ -81,7 +88,7 @@ class AuthController extends Controller
         ], 200);
     }
     
-    // Función para Cerrar Sesion
+    // Función para Cerrar Sesión
     public function logout(Request $request) {
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Sesión cerrada correctamente']);
@@ -92,11 +99,11 @@ class AuthController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
-        $status = \Illuminate\Support\Facades\Password::sendResetLink(
+        $status = Password::sendResetLink(
             $request->only('email')
         );
 
-        if ($status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT) {
+        if ($status === Password::RESET_LINK_SENT) {
             return response()->json(['message' => '¡Correo enviado! Revisa tu bandeja para activar o recuperar tu cuenta.']);
         }
 
@@ -112,11 +119,7 @@ class AuthController extends Controller
             'password' => [
                 'required',
                 'confirmed',
-                PasswordRules::min(8)
-                    ->letters()
-                    ->mixedCase()
-                    ->numbers()
-                    ->symbols()
+                PasswordRules::min(8)->letters()->mixedCase()->numbers()->symbols()
             ],
         ]);
 
@@ -127,9 +130,10 @@ class AuthController extends Controller
                     'password' => Hash::make($password)
                 ])->setRememberToken(Str::random(60));
 
-                // --- MAGIA: SI ERA PENDIENTE, AHORA ES ACTIVO ---
+                // --- ACTIVACIÓN AUTOMÁTICA ---
                 if ($user->email_verified_at === null) {
                     $user->email_verified_at = now();
+                    $user->is_active = true; // Aseguramos que se active
                 }
 
                 $user->save();

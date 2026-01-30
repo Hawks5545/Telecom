@@ -35,31 +35,30 @@ class RoleController extends Controller
     }
 
     // --- FUNCIÓN DE EDICIÓN ---
-    public function update(Request $request, $id)
+   public function update(Request $request, $id)
     {
         $role = Role::findOrFail($id);
 
-        // PROTECCIÓN: No permitimos editar el nombre técnico ni permisos del 'admin' principal
-        // para evitar que el sistema se quede sin superusuario.
-        if ($role->name === 'admin') {
-            // Al admin solo le dejamos cambiar la descripción visual, nada más.
-            $role->update([
-                'description' => $request->description
-            ]);
-            return response()->json(['message' => 'Rol Admin actualizado (Permisos protegidos).', 'role' => $role]);
+        // 🔒 CANDADO ROJO: SI ES ADMIN, NO SE TOCA NADA.
+        // Ni descripción, ni nombre, ni permisos.
+        if (strtolower($role->name) === 'admin') {
+            return response()->json([
+                'message' => '🚫 ACCIÓN DENEGADA: El rol de Administrador Principal está protegido y no puede ser modificado.'
+            ], 403);
         }
 
+        // --- VALIDACIÓN NORMAL PARA OTROS ROLES ---
         $request->validate([
             'display_name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'permisos' => 'array'
         ]);
 
-        // Actualizamos todo
+        // Actualizamos todo normal para roles como Junior, Senior, etc.
         $role->update([
             'display_name' => $request->display_name,
             'description' => $request->description,
-            'permissions' => $request->permisos // Actualización dinámica de permisos
+            'permissions' => $request->permisos
         ]);
 
         return response()->json(['message' => 'Rol actualizado correctamente', 'role' => $role]);

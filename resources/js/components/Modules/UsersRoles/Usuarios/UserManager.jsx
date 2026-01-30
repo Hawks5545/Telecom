@@ -56,25 +56,21 @@ const UserManager = () => {
                     const nombre = nameParts[0];
                     const apellido = nameParts.slice(1).join(' ') || '';
 
-                    const roleDisplay = {
-                        'admin': 'Administrador',
-                        'senior': 'Senior',
-                        'junior': 'Junior',
-                        'analista': 'Analista'
-                    };
+                    // --- CAMBIO CLAVE 1: YA NO NECESITAMOS EL DICCIONARIO MANUAL ---
+                    // La base de datos ya nos da el nombre bonito en 'display_name'
 
                     // --- MÁQUINA DE ESTADOS ---
                     let estadoLabel = 'Desconocido';
-                    let estadoClass = styles.statusInactive; // Por defecto rojo
+                    let estadoClass = styles.statusInactive; 
 
                     if (u.is_active === 0) {
-                        estadoLabel = 'Inactivo'; // Bloqueado por Admin
+                        estadoLabel = 'Inactivo'; 
                         estadoClass = styles.statusInactive; 
                     } else if (u.email_verified_at === null) {
-                        estadoLabel = 'Pendiente'; // No ha activado cuenta
-                        estadoClass = styles.statusPending; // (Debes agregar este estilo CSS, color gris/amarillo)
+                        estadoLabel = 'Pendiente'; 
+                        estadoClass = styles.statusPending; 
                     } else {
-                        estadoLabel = 'Activo'; // Todo OK
+                        estadoLabel = 'Activo'; 
                         estadoClass = styles.statusActive; 
                     }
 
@@ -82,8 +78,13 @@ const UserManager = () => {
                         id: u.id,
                         nombre: nombre,
                         apellido: apellido,
-                        rol: u.assigned_role ? u.assigned_role.display_name : (roleDisplay[u.role] || u.role),
-                        docTipo: 'C.C', 
+                        
+                        // --- CAMBIO CLAVE 2: LEER DESDE EL OBJETO RELACIONADO ---
+                        // Si existe u.role, mostramos su display_name ("Administrador").
+                        // Si no tiene rol, mostramos "Sin Rol".
+                        rol: u.role ? u.role.display_name : 'Sin Rol',
+
+                        docTipo: 'C.C', // Si tienes este dato en BD, úsalo: u.tipo_documento
                         docNum: u.cedula || 'N/A',
                         correo: u.email,
                         fecha: new Date(u.created_at).toLocaleDateString(),
@@ -92,8 +93,13 @@ const UserManager = () => {
                         estado: estadoLabel,
                         estadoClass: estadoClass,
                         
-                        // Datos crudos para el modal de edición
-                        originalData: u 
+                        // --- CAMBIO CLAVE 3: PREPARAR DATOS PARA EDICIÓN ---
+                        // El modal de edición espera que 'role' sea un string (ej: 'admin')
+                        // no un objeto completo. Lo aplanamos aquí para evitar errores.
+                        originalData: {
+                            ...u,
+                            role: u.role ? u.role.name : '' // Pasamos 'admin', 'junior', etc.
+                        } 
                     };
                 });
 
@@ -132,7 +138,7 @@ const UserManager = () => {
     // --- ACCIONES DEL SISTEMA ---
 
     const handleOpenEdit = (user) => {
-        // Pasamos los datos originales (crudos) para que el modal funcione bien
+        // Pasamos los datos preparados para que el modal funcione bien
         setSelectedUser(user.originalData);
         setShowEditModal(true);
     };

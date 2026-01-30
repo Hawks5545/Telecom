@@ -1,4 +1,3 @@
-// resources/js/components/Modules/Indexing/Indexing.jsx
 import React, { useState } from 'react';
 import styles from './Indexing.module.css';
 import CustomAlert from '../../Common/CustomAlert/CustomAlert';
@@ -7,18 +6,19 @@ const Indexing = () => {
     
     // --- 1. ESTADOS ---
     const [stats, setStats] = useState({
-        detectadas: 12450,
-        indexadas: 11980,
+        detectadas: 0,
+        indexadas: 0, // Esto se actualizará al terminar
         peso: '---', 
-        ultima: '2026-01-12'
+        ultima: '---'
     });
 
-    const [folderPath, setFolderPath] = useState('/var/grabaciones/ventas/');
+    // Ruta por defecto (puedes cambiarla para probar)
+    const [folderPath, setFolderPath] = useState('C:/laragon/www/Telecomu/public/storage/audios_prueba'); 
     const [isScanning, setIsScanning] = useState(false);
     const [isIndexing, setIsIndexing] = useState(false);
     
     const [logs, setLogs] = useState([
-        { type: 'info', msg: 'Sistema listo. Esperando instrucciones...' }
+        { type: 'info', msg: 'Sistema listo. Ingrese una ruta y presione Escanear.' }
     ]);
 
     const [options, setOptions] = useState({
@@ -27,86 +27,113 @@ const Indexing = () => {
         associateFolder: true
     });
 
-    // --- 2. CONFIGURACIÓN DE ALERTA ---
+    // --- 2. ALERTAS ---
     const [alertConfig, setAlertConfig] = useState({
-        isOpen: false,
-        type: 'info',
-        title: '',
-        message: '',
-        onConfirm: null
+        isOpen: false, type: 'info', title: '', message: '', onConfirm: null
     });
 
     const showAlert = (type, title, message, onConfirm = null) => {
         setAlertConfig({ isOpen: true, type, title, message, onConfirm });
     };
+    const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
-    const closeAlert = () => {
-        setAlertConfig({ ...alertConfig, isOpen: false });
-    };
-
-    // --- 3. FUNCIONES ---
-
-    const handleScan = () => {
-        setIsScanning(true);
-        addLog('info', `Iniciando escaneo en: ${folderPath}...`);
-
-        setTimeout(() => {
-            const randomSize = Math.floor(Math.random() * (500 - 50) + 50); 
-            const randomDetected = Math.floor(Math.random() * 200) + stats.detectadas; 
-
-            setStats(prev => ({
-                ...prev,
-                peso: `${randomSize} MB`, 
-                detectadas: randomDetected
-            }));
-            
-            addLog('success', `Escaneo completado. Tamaño detectado: ${randomSize} MB.`);
-            setIsScanning(false);
-        }, 1500);
-    };
-
-    const handleIndex = () => {
-        // VALIDACIÓN: Si no ha escaneado (Peso es '---')
-        if (stats.peso === '---') {
-            showAlert(
-                'info',
-                'Escaneo Requerido', 
-                '⚠️ Por favor, escanea la carpeta del servidor antes de iniciar el proceso de indexación.',
-                () => {} 
-            );
-            return;
-        }
-
-        setIsIndexing(true);
-        setLogs([]); 
-        addLog('info', 'Iniciando proceso de indexación...');
-
-        setTimeout(() => addLog('info', 'Conectando mediante SFTP...'), 500);
-        setTimeout(() => addLog('info', 'Verificando duplicados en base de datos...'), 1500);
-        setTimeout(() => addLog('warning', 'Omitiendo 5 archivos existentes...'), 2500);
-        
-        setTimeout(() => {
-            const newIndexed = stats.indexadas + 120;
-            setStats(prev => ({ ...prev, indexadas: newIndexed, ultima: new Date().toISOString().slice(0,10) }));
-            
-            addLog('success', 'PROCESO FINALIZADO: 120 grabaciones nuevas indexadas.');
-            setIsIndexing(false);
-            
-            // ALERTA DE ÉXITO
-            setTimeout(() => {
-                showAlert(
-                    'success', 
-                    'Indexación Exitosa', 
-                    '✅ El proceso ha finalizado correctamente. Se han indexado 120 nuevas grabaciones.'
-                );
-            }, 100);
-
-        }, 3500);
-    };
-
+    // --- 3. FUNCIONES DE LOGS ---
     const addLog = (type, msg) => {
         const time = new Date().toLocaleTimeString();
         setLogs(prev => [...prev, { type, msg, time }]);
+    };
+
+    // --- 4. ACCIÓN: ESCANEAR (FASE 1) ---
+    const handleScan = async () => {
+        if (!folderPath) return showAlert('error', 'Error', 'La ruta no puede estar vacía.');
+
+        setIsScanning(true);
+        addLog('info', `Iniciando escaneo en: ${folderPath}...`);
+        
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch('http://127.0.0.1:8000/api/indexing/scan', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ path: folderPath })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setStats(prev => ({
+                    ...prev,
+                    peso: `${data.size_mb} MB`, 
+                    detectadas: data.files_count
+                }));
+                addLog('success', `Escaneo exitoso: ${data.files_count} archivos de audio detectados (${data.size_mb} MB).`);
+            } else {
+                addLog('error', `Error de escaneo: ${data.message}`);
+                showAlert('error', 'Carpeta no encontrada', data.message);
+            }
+        } catch (error) {
+            addLog('error', 'Error de conexión con el servidor.');
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    // --- 5. ACCIÓN: INDEXAR (FASE 2) ---
+    const handleIndex = async () => {
+        // VALIDACIÓN: Si no ha escaneado o no encontró nada
+        if (stats.peso === '---' || stats.detectadas === 0) {
+            return showAlert(
+                'warning',
+                'Escaneo Requerido', 
+                '⚠️ Por favor, realiza un escaneo exitoso antes de iniciar la indexación.'
+            );
+        }
+
+        setIsIndexing(true);
+        // No borramos logs anteriores, solo agregamos separador
+        addLog('info', '------------------------------------------------');
+        addLog('info', '🚀 Iniciando proceso de indexación masiva...');
+
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch('http://127.0.0.1:8000/api/indexing/run', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ 
+                    path: folderPath,
+                    options: options
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                const today = new Date().toISOString().slice(0,10);
+                setStats(prev => ({ 
+                    ...prev, 
+                    indexadas: data.total_in_db, // Total real en BD
+                    ultima: today 
+                }));
+                
+                addLog('success', `PROCESO FINALIZADO.`);
+                addLog('success', `✅ Nuevos indexados: ${data.indexed}`);
+                addLog('warning', `⏭️ Omitidos (Duplicados): ${data.skipped}`);
+                
+                showAlert('success', 'Indexación Exitosa', `Se procesaron ${data.indexed} archivos correctamente.`);
+            } else {
+                addLog('error', `Error crítico: ${data.message}`);
+            }
+        } catch (error) {
+            addLog('error', 'Error de conexión o timeout (si son muchos archivos).');
+        } finally {
+            setIsIndexing(false);
+        }
     };
 
     return (
@@ -129,21 +156,21 @@ const Indexing = () => {
             {/* SECCIÓN 1: ESTADO DEL SISTEMA */}
             <div className={`card ${styles.cardCustom}`}>
                 <div className={styles.cardHeader}>
-                    <i className="bi bi-activity me-2"></i> Estado del Sistema
+                    <i className="bi bi-activity me-2"></i> Estado del Proceso Actual
                 </div>
                 <div className="card-body p-4">
                     <div className="row g-4">
                         <div className="col-md-3">
                             <div className={styles.statCard}>
                                 <i className={`bi bi-search ${styles.statIcon}`}></i>
-                                <div className={styles.statTitle}>Detectadas</div>
+                                <div className={styles.statTitle}>Detectadas (Scan)</div>
                                 <div className={styles.statValue}>{stats.detectadas}</div>
                             </div>
                         </div>
                         <div className="col-md-3">
                             <div className={styles.statCard}>
                                 <i className={`bi bi-database-check ${styles.statIcon}`}></i>
-                                <div className={styles.statTitle}>Indexadas</div>
+                                <div className={styles.statTitle}>Total en BD</div>
                                 <div className={styles.statValue}>{stats.indexadas}</div>
                             </div>
                         </div>
@@ -173,7 +200,7 @@ const Indexing = () => {
                     <i className="bi bi-folder-symlink me-2"></i> Carpeta del Servidor
                 </div>
                 <div className="card-body p-4">
-                    <label className={styles.label}>Ruta absoluta (Linux)</label>
+                    <label className={styles.label}>Ruta absoluta (Ej: C:\audios o /mnt/grabaciones)</label>
                     <div className="input-group mb-3">
                         <span className="input-group-text bg-light"><i className="bi bi-terminal"></i></span>
                         <input 
@@ -181,6 +208,7 @@ const Indexing = () => {
                             className="form-control" 
                             value={folderPath}
                             onChange={(e) => setFolderPath(e.target.value)}
+                            placeholder="Ingresa la ruta de la carpeta a escanear"
                         />
                         <button 
                             className={`btn ${styles.btnScan}`} 
@@ -189,6 +217,9 @@ const Indexing = () => {
                         >
                             {isScanning ? 'Escaneando...' : 'Escanear Carpeta'}
                         </button>
+                    </div>
+                    <div className="form-text text-muted">
+                        Nota: Asegúrate de que la carpeta tenga permisos de lectura para el servidor web.
                     </div>
                 </div>
             </div>
@@ -201,8 +232,8 @@ const Indexing = () => {
                 <div className="card-body p-4">
                     <div className="mb-4">
                         <div className="form-check mb-2">
-                            <input className="form-check-input" type="checkbox" checked={options.skipDuplicates} readOnly />
-                            <label className={`form-check-label ${styles.checkboxLabel}`}>Omitir grabaciones duplicadas</label>
+                            <input className="form-check-input" type="checkbox" checked={options.skipDuplicates} onChange={() => setOptions({...options, skipDuplicates: !options.skipDuplicates})} />
+                            <label className={`form-check-label ${styles.checkboxLabel}`}>Omitir grabaciones duplicadas (recomendado)</label>
                         </div>
                         <div className="form-check mb-2">
                             <input className="form-check-input" type="checkbox" checked={options.onlyNew} readOnly />
@@ -217,7 +248,7 @@ const Indexing = () => {
                     <button 
                         className={`btn ${styles.btnIndex}`} 
                         onClick={handleIndex}
-                        disabled={isScanning || isIndexing}
+                        disabled={isScanning || isIndexing || stats.detectadas === 0}
                     >
                         {isIndexing ? (
                             <>
@@ -240,6 +271,7 @@ const Indexing = () => {
                 </div>
                 <div className="card-body p-3">
                     <div className={styles.consoleContainer}>
+                        {logs.length === 0 && <span className="text-muted small">Sin actividad reciente.</span>}
                         {logs.map((log, index) => (
                             <div key={index} className="mb-1">
                                 <span className="text-muted small me-2">[{log.time}]</span>

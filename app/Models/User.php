@@ -16,7 +16,6 @@ class User extends Authenticatable
         'name',
         'email',
         'cedula',
-        'role',
         'role_id',    
         'password',
         'is_active', 
@@ -33,7 +32,11 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
     ];
 
-    // --- 4. FUNCIÓN DE RELACIÓN (Soluciona el error "undefined relationship") ---
+    public function role()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
     public function assignedRole()
     {
         return $this->belongsTo(Role::class, 'role_id');

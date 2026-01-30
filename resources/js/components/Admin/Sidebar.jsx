@@ -6,9 +6,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
     // 1. LEER DATOS Y PERMISOS DEL USUARIO
     const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
     const role = userData.role; 
-    
-    // Aquí está la magia: Obtenemos el array de permisos que envió el AuthController
-    // Si no existe, usamos un array vacío para evitar errores.
+
     const userPerms = userData.permissions || [];
 
     const handleNavClick = (viewName, e) => {
@@ -18,15 +16,12 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
         }
     };
 
-    // 2. LÓGICA DE PERMISOS DINÁMICA (RBAC Real) 🧠
-    // Esta función verifica si el usuario tiene el permiso específico en su lista.
+    // 2. LÓGICA DE PERMISOS DINÁMICA 
     const canSee = (permissionName) => {
         // Si el usuario es super-admin (tiene comodín '*') o tiene el permiso exacto
         return userPerms.includes('*') || userPerms.includes(permissionName);
     };
-
-    // Nota: Para el módulo de Usuarios, a veces solo queremos que entre el Admin,
-    // o alguien con un permiso explícito de "Gestión de Usuarios".
+    
     const canSeeUsers = () => {
         return role === 'admin' || userPerms.includes('Gestión de Usuarios');
     };

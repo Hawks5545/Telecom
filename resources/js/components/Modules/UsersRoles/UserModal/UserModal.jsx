@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // <--- 1. Importamos useEffect
 import styles from './UserModal.module.css';
 
 const UserModal = ({ isOpen, onClose, onSuccess }) => {
     
     // Si el modal no está abierto, no renderizamos nada
     if (!isOpen) return null;
+
+    // --- ESTADO PARA LA LISTA DE ROLES (DINÁMICO) ---
+    const [rolesList, setRolesList] = useState([]);
 
     // Estado local para los campos del formulario
     const [formData, setFormData] = useState({
@@ -13,12 +16,42 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
         tipoDoc: 'Cédula de Ciudadanía (C.C)',
         numDoc: '',
         correo: '',
-        rol: 'Analista' // Valor por defecto
+        rol: '' // Ahora empieza vacío hasta que carguen los roles
     });
 
     // Estados para manejar la carga y errores
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+
+    // --- 2. EFECTO MÁGICO: CARGAR ROLES AL ABRIR ---
+    useEffect(() => {
+        const fetchRoles = async () => {
+            try {
+                const token = localStorage.getItem('auth_token');
+                // Pide la lista real a tu Base de Datos
+                const response = await fetch('http://127.0.0.1:8000/api/roles', {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    setRolesList(data); // Guardamos los roles que llegaron
+                    
+                    // Si hay roles y no hemos seleccionado nada, seleccionamos el primero por defecto
+                    if (data.length > 0) {
+                        setFormData(prev => ({ ...prev, rol: data[0].name }));
+                    }
+                }
+            } catch (err) {
+                console.error("Error cargando roles:", err);
+            }
+        };
+
+        fetchRoles();
+    }, []); // Se ejecuta una vez al montar el componente
 
     const handleChange = (e) => {
         setFormData({
@@ -32,26 +65,17 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
         setIsSubmitting(true);
         setError('');
         
-        // 1. PREPARAR LOS DATOS (TRADUCCIÓN)
-        // Convertimos los datos de tu formulario al formato que espera Laravel
-        
-        // Mapeo de Roles: Frontend -> Backend
-        const roleMap = {
-            'Administrador': 'admin',
-            'Analista': 'analista',
-            'Senior': 'senior',
-            'Junior': 'junior'
-        };
+        // --- 3. PREPARAR DATOS (SIMPLIFICADO) ---
+        // Ya no necesitamos el "roleMap" porque el select ya tiene el valor correcto
 
         const payload = {
-            name: `${formData.nombre} ${formData.apellido}`, // Unimos nombre y apellido
+            name: `${formData.nombre} ${formData.apellido}`,
             email: formData.correo,
             cedula: formData.numDoc,
-            role: roleMap[formData.rol] || 'analista'
+            role: formData.rol // Enviamos directamente lo que seleccionó (ej: 'practicante_sena')
         };
 
         try {
-            // Recuperar el token (Asegúrate de que se llame 'auth_token' o como lo hayas guardado en el Login)
             const token = localStorage.getItem('auth_token');
 
             const response = await fetch('http://127.0.0.1:8000/api/users', {
@@ -59,7 +83,7 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'Authorization': `Bearer ${token}` // <--- La llave maestra
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(payload)
             });
@@ -69,7 +93,7 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
             if (response.ok) {
                 // ÉXITO
                 if (onSuccess) {
-                    onSuccess(); // Dispara la alerta verde del padre y recarga la tabla
+                    onSuccess(); 
                 }
                 
                 // Limpiar formulario
@@ -79,11 +103,10 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                     tipoDoc: 'Cédula de Ciudadanía (C.C)',
                     numDoc: '',
                     correo: '',
-                    rol: 'Analista'
+                    rol: rolesList[0]?.name || '' // Volver al primer rol por defecto
                 });
-                onClose(); // Cerrar modal
+                onClose();
             } else {
-                // ERROR (Ej: Correo duplicado)
                 setError(data.message || 'Error al registrar el usuario.');
             }
 
@@ -110,7 +133,6 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                 {/* Body */}
                 <div className={styles.modalBody}>
                     
-                    {/* Mensaje de Error (Si falla el backend) */}
                     {error && (
                         <div className="alert alert-danger p-2 text-center mb-3" style={{fontSize: '0.9rem'}}>
                             {error}
@@ -125,11 +147,11 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                                 <label className={styles.label}>Nombres</label>
                                 <input 
                                     type="text" 
-                                    name="nombre"
+                                    name="nombre" 
                                     className="form-control" 
                                     placeholder="Ej: Carlos"
-                                    value={formData.nombre}
-                                    onChange={handleChange}
+                                    value={formData.nombre} 
+                                    onChange={handleChange} 
                                     required 
                                 />
                             </div>
@@ -137,11 +159,11 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                                 <label className={styles.label}>Apellidos</label>
                                 <input 
                                     type="text" 
-                                    name="apellido"
+                                    name="apellido" 
                                     className="form-control" 
                                     placeholder="Ej: Perez"
-                                    value={formData.apellido}
-                                    onChange={handleChange}
+                                    value={formData.apellido} 
+                                    onChange={handleChange} 
                                     required 
                                 />
                             </div>
@@ -166,11 +188,11 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                                 <label className={styles.label}>Número Documento</label>
                                 <input 
                                     type="number" 
-                                    name="numDoc"
+                                    name="numDoc" 
                                     className="form-control" 
                                     placeholder="Ej: 1098..."
-                                    value={formData.numDoc}
-                                    onChange={handleChange}
+                                    value={formData.numDoc} 
+                                    onChange={handleChange} 
                                     required 
                                 />
                             </div>
@@ -181,16 +203,16 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                             <label className={styles.label}>Correo Electrónico</label>
                             <input 
                                 type="email" 
-                                name="correo"
+                                name="correo" 
                                 className="form-control" 
                                 placeholder="nombre@empresa.com"
-                                value={formData.correo}
-                                onChange={handleChange}
+                                value={formData.correo} 
+                                onChange={handleChange} 
                                 required 
                             />
                         </div>
 
-                        {/* Fila 4: Rol */}
+                        {/* --- Fila 4: ROL (AQUÍ ESTÁ LA MAGIA) --- */}
                         <div className="mb-4">
                             <label className={styles.label}>Rol Asignado</label>
                             <select 
@@ -198,12 +220,17 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                                 className="form-select"
                                 value={formData.rol}
                                 onChange={handleChange}
+                                required
                             >
-                                <option>Administrador</option>
-                                <option>Analista</option>
-                                {/* He separado Junior y Senior para coincidir con el backend */}
-                                <option>Senior</option>
-                                <option>Junior</option>
+                                {/* Opción por defecto mientras carga */}
+                                {rolesList.length === 0 && <option value="">Cargando roles...</option>}
+                                
+                                {/* Bucle que dibuja los roles reales de la BD */}
+                                {rolesList.map((role) => (
+                                    <option key={role.id} value={role.name}>
+                                        {role.display_name || role.name}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 

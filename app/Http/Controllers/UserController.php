@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Role; 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -15,16 +14,18 @@ class UserController extends Controller
 {
     public function index()
     {
-        // Cargamos también la relación 'assignedRole' para mostrarla en la tabla
-        return response()->json(User::with('assignedRole')->orderBy('id', 'asc')->get());
+        // CAMBIO: Usamos la relación 'role' (definida en el modelo User) en lugar de 'assignedRole'
+        return response()->json(User::with('role')->orderBy('id', 'asc')->get());
     }
 
     public function store(Request $request)
     {
+        // 1. Validaciones
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'cedula' => 'required|string|max:20|unique:users',
+            // El frontend envía el nombre (ej: 'admin'), validamos que exista en la tabla roles
             'role' => 'required|exists:roles,name', 
         ], [
             'email.unique' => 'Este correo electrónico ya está registrado.',
@@ -32,30 +33,35 @@ class UserController extends Controller
             'role.exists' => 'El rol seleccionado no es válido.',
         ]);
 
-        // Buscamos el ID del rol
+        // 2. TRADUCCIÓN: Buscamos el ID del rol basado en el nombre
         $roleModel = Role::where('name', $request->role)->first();
 
+        // Generamos contraseña temporal aleatoria
         $tempPassword = Str::random(20); 
 
+        // 3. Crear Usuario (SOLO con role_id)
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'cedula' => $request->cedula,
             
-            // Guardamos AMBOS datos de rol
-            'role' => $request->role,      
+            // --- CAMBIO IMPORTANTE: NORMALIZACIÓN ---
+            // Ya NO guardamos la columna 'role' (texto), solo el ID.
             'role_id' => $roleModel->id,   
             
             'password' => Hash::make($tempPassword),
             
-            // --- ESTADO INICIAL: PENDIENTE ---
-            'is_active' => true,           // Está habilitado para activarse...
-            'email_verified_at' => null,   // ...pero es Pendiente hasta que verifique
+            // Estado Inicial: Pendiente
+            'is_active' => true,           // Habilitado...
+            'email_verified_at' => null,   // ...pero pendiente de verificar
         ]);
 
-        // Enviamos el correo para que defina su contraseña y se active
+        // 4. Enviar correo de activación
         $token = Password::createToken($user);
         $user->sendPasswordResetNotification($token);
+
+        // Cargamos la relación para devolver el objeto completo al frontend
+        $user->load('role');
 
         return response()->json([
             'message' => 'Usuario registrado. Se ha enviado el correo para activar la cuenta.',
@@ -75,29 +81,28 @@ class UserController extends Controller
             'is_active' => 'boolean' 
         ]);
 
-        // Buscamos el nuevo rol
+        // Buscamos el nuevo rol por nombre para obtener su ID
         $roleModel = Role::where('name', $request->role)->first();
 
         // Verificamos si cambió el correo
         $emailChanged = $request->email !== $user->email;
 
+        // Asignación de datos
         $user->name = $request->name;
         $user->cedula = $request->cedula;
         
-        // Actualizamos roles
-        $user->role = $request->role;      
+        // --- CAMBIO IMPORTANTE: Solo actualizamos el ID ---
         $user->role_id = $roleModel->id;   
-
-        // Actualizamos estado de bloqueo (Activo/Inactivo)
+        // $user->role = $request->role; <--- ELIMINADO
+        
         $user->is_active = $request->is_active;
 
-        // Protección al Super Admin
+        // Protección al Super Admin (ID 1)
         if ($user->id === 1 && $request->is_active == false) {
              return response()->json(['message' => 'No puedes desactivar al Super Admin.'], 403);
         }
 
-        // --- LÓGICA DE RE-VERIFICACIÓN ---
-        // Si cambió el correo, el usuario vuelve a ser PENDIENTE
+        // Lógica de Re-verificación de correo
         if ($emailChanged) {
             $user->email = $request->email;
             $user->email_verified_at = null; 
@@ -116,23 +121,22 @@ class UserController extends Controller
 
         return response()->json([
             'message' => $message,
-            'user' => $user
+            'user' => $user->load('role') // Devolvemos con el rol cargado
         ]);
     }
 
-    // Función para Eliminar Usuario
     public function destroy(Request $request, $id)
     {
         $user = User::findOrFail($id);
 
-        // 1. PROTECCIÓN DE ORO: Jamás borrar al Super Admin (ID 1)
+        // 1. Protección Super Admin
         if ($user->id === 1) {
             return response()->json([
                 'message' => '¡Acción Denegada! No puedes eliminar al Super Administrador principal.'
             ], 403);
         }
 
-        // 2. Evitar auto-eliminación
+        // 2. Protección Auto-eliminación
         if ($request->user()->id === $user->id) {
              return response()->json([
                 'message' => 'No puedes eliminar tu propia cuenta mientras estás en sesión.'
