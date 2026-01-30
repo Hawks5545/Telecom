@@ -39,8 +39,7 @@ class RoleController extends Controller
     {
         $role = Role::findOrFail($id);
 
-        // 🔒 CANDADO ROJO: SI ES ADMIN, NO SE TOCA NADA.
-        // Ni descripción, ni nombre, ni permisos.
+        // Si el usuario es admin no se modifica nada 
         if (strtolower($role->name) === 'admin') {
             return response()->json([
                 'message' => '🚫 ACCIÓN DENEGADA: El rol de Administrador Principal está protegido y no puede ser modificado.'
@@ -81,7 +80,7 @@ class RoleController extends Controller
             ], 400);
         }
 
-        // Borramos también los permisos asociados en la tabla pivote (si usas una)
+        // Borra también los permisos asociados en la tabla pivote (si usa una)
         // O simplemente borramos el rol
         $role->delete();
 

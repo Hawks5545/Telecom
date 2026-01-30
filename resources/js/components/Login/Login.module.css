@@ -159,7 +159,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    /* Efectos reactivados */
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -168,7 +167,7 @@
 .backButton:hover {
     background-color: #f0f7f8;
     border-color: #3BC1A8;
-    transform: translateX(-3px); /* Pequeño movimiento a la izquierda */
+    transform: translateX(-3px); 
 }
 
 .submitWrapper {

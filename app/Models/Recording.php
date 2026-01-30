@@ -22,7 +22,6 @@ class Recording extends Model
         'fecha_grabacion'
     ];
 
-    // Casteamos la fecha para que Laravel la trate como objeto Carbon automáticamente
     protected $casts = [
         'fecha_grabacion' => 'datetime',
     ];

@@ -59,11 +59,7 @@ const MainApp = () => {
     }, [isLoggedIn, navigate]);
 
     // 2. CORRECCIÓN: Definimos las variables clave
-    // userPerms: Array de permisos para controlar el acceso a módulos
     const userPerms = userData.permissions || [];
-    
-    // displayRoleName: El nombre bonito para mostrar en el Dashboard
-    // Prioridad: role_display > role > Texto por defecto
     const displayRoleName = userData.role_display || userData.role || 'Sin Rol Asignado';
 
     // 3. LOGOUT
@@ -71,7 +67,6 @@ const MainApp = () => {
         try {
             const token = localStorage.getItem('auth_token');
             if (token) {
-                // Intentamos avisar al backend
                 await fetch('http://127.0.0.1:8000/api/logout', {
                     method: 'POST',
                     headers: {
@@ -91,7 +86,6 @@ const MainApp = () => {
     };
 
     // 4. FUNCIÓN HELPER PARA PERMISOS
-    // Verifica si tiene el permiso específico O si es superadmin ('*')
     const canSee = (perm) => userPerms.includes('*') || userPerms.includes(perm);
 
     const renderContent = () => {
@@ -108,7 +102,6 @@ const MainApp = () => {
                 return canSee('Reportes') ? <Reportes/> : <Navigate to="/dashboard" replace />;
             
             case 'users': 
-                // Acceso para Admin O quien tenga el permiso explícito
                 return (userData.role === 'admin' || canSee('Gestión de Usuarios')) ? <UsersRoles/> : <Navigate to="/dashboard" replace />;
             
             case 'configuration': 

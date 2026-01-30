@@ -70,7 +70,6 @@ const ResetPassword = () => {
             const data = await response.json();
 
             if (response.ok) {
-                // --- ACTUALIZACIÓN DE SEGURIDAD CRÍTICA ---
                 // 1. Limpiar rastro de sesiones previas (especialmente de Administrador)
                 localStorage.removeItem('auth_token');
                 localStorage.removeItem('user_role');

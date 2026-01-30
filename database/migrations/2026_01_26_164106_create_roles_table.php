@@ -13,8 +13,8 @@ return new class extends Migration
 {
     Schema::create('roles', function (Blueprint $class) {
         $class->id();
-        $class->string('name')->unique(); // 'admin', 'senior', 'junior', 'analista'
-        $class->string('display_name');  // 'Administrador', 'Senior', etc.
+        $class->string('name')->unique(); 
+        $class->string('display_name');  
         $class->string('description')->nullable();
         $class->timestamps();
     });

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import styles from './EditRoleModal.module.css';
 
 const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => { 
-    // Si no está abierto o no hay rol, no renderizamos nada
+    // Si no está abierto o no hay rol, no renderiza nada
     if (!isOpen || !role) return null;
 
     // 1. CORRECCIÓN: Usamos 'name' (interno) para detectar al admin, no el nombre visible
@@ -31,11 +31,9 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
     useEffect(() => {
         if (role) {
             setFormData({
-                // CORRECCIÓN: Laravel envía 'display_name' y 'description'
                 display_name: role.display_name || '', 
                 description: role.description || ''
             });
-            // CORRECCIÓN: Laravel envía 'permissions' (array o null)
             setSelectedPerms(role.permissions || []);
         }
     }, [role]);
@@ -73,15 +71,15 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
                 body: JSON.stringify({
                     display_name: formData.display_name,
                     description: formData.description,
-                    permisos: selectedPerms // Enviamos 'permisos' porque así lo espera tu Controller
+                    permisos: selectedPerms 
                 })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                if (onSuccess) onSuccess(); // Recarga la tabla en el padre
-                onClose(); // Cierra el modal
+                if (onSuccess) onSuccess(); 
+                onClose(); 
             } else {
                 setError(data.message || 'Error al actualizar el rol.');
             }
@@ -117,7 +115,7 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
                                 className={`form-control ${isProtectedAdmin ? styles.readOnlyInput : ''}`} 
                                 value={formData.display_name} 
                                 onChange={handleChange}
-                                disabled={isProtectedAdmin} // El nombre del admin no se toca
+                                disabled={isProtectedAdmin} 
                             />
                         </div>
                         

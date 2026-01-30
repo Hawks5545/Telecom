@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react'; 
 import styles from './UserManager.module.css';
 
-// Importamos los modales (Hijos)
+
 import UserModal from '../UserModal/UserModal'; 
 import EditUserModal from '../EditUserModal/EditUserModal';
-
-// Importamos la Alerta Personalizada (Common)
 import CustomAlert from '../../../Common/CustomAlert/CustomAlert'; 
 
 const UserManager = () => {
@@ -27,8 +25,8 @@ const UserManager = () => {
     });
 
     // --- ESTADOS DE DATOS ---
-    const [users, setUsers] = useState([]); // Inicia vacío
-    const [isLoading, setIsLoading] = useState(true); // Estado de carga
+    const [users, setUsers] = useState([]); 
+    const [isLoading, setIsLoading] = useState(true); 
     
     // Paginación
     const [currentPage, setCurrentPage] = useState(1);
@@ -50,25 +48,39 @@ const UserManager = () => {
             if (response.ok) {
                 const data = await response.json();
                 
-                // TRANSFORMACIÓN DE DATOS CON LÓGICA DE ESTADOS
+                // TRANSFORMACIÓN DE DATOS CON LÓGICA INTELIGENTE
                 const formattedUsers = data.map(u => {
-                    const nameParts = u.name.split(' ');
-                    const nombre = nameParts[0];
-                    const apellido = nameParts.slice(1).join(' ') || '';
+                    
+                    // 1. SEPARACIÓN INTELIGENTE DE NOMBRES
+                    const parts = u.name.trim().split(/\s+/);
+                    let nombre, apellido;
 
-                    // --- CAMBIO CLAVE 1: YA NO NECESITAMOS EL DICCIONARIO MANUAL ---
-                    // La base de datos ya nos da el nombre bonito en 'display_name'
+                    if (parts.length >= 4) {
 
-                    // --- MÁQUINA DE ESTADOS ---
+                        nombre = parts.slice(0, 2).join(' ');
+                        apellido = parts.slice(2).join(' ');
+
+                    } else if (parts.length === 3) {
+                        nombre = parts[0];
+                        apellido = parts.slice(1).join(' ');
+
+                    } else {
+                        nombre = parts[0];
+                        apellido = parts.slice(1).join(' ') || '';
+                    }
+
+                    // 2. MÁQUINA DE ESTADOS (Colores y Etiquetas)
                     let estadoLabel = 'Desconocido';
                     let estadoClass = styles.statusInactive; 
 
                     if (u.is_active === 0) {
                         estadoLabel = 'Inactivo'; 
                         estadoClass = styles.statusInactive; 
+
                     } else if (u.email_verified_at === null) {
                         estadoLabel = 'Pendiente'; 
                         estadoClass = styles.statusPending; 
+
                     } else {
                         estadoLabel = 'Activo'; 
                         estadoClass = styles.statusActive; 
@@ -76,29 +88,22 @@ const UserManager = () => {
 
                     return {
                         id: u.id,
-                        nombre: nombre,
-                        apellido: apellido,
-                        
-                        // --- CAMBIO CLAVE 2: LEER DESDE EL OBJETO RELACIONADO ---
-                        // Si existe u.role, mostramos su display_name ("Administrador").
-                        // Si no tiene rol, mostramos "Sin Rol".
+                        nombre: nombre,     
+                        apellido: apellido, 
                         rol: u.role ? u.role.display_name : 'Sin Rol',
 
-                        docTipo: 'C.C', // Si tienes este dato en BD, úsalo: u.tipo_documento
+                        docTipo: 'C.C',
                         docNum: u.cedula || 'N/A',
                         correo: u.email,
                         fecha: new Date(u.created_at).toLocaleDateString(),
-                        
-                        // Estado Lógico y Visual
                         estado: estadoLabel,
                         estadoClass: estadoClass,
                         
-                        // --- CAMBIO CLAVE 3: PREPARAR DATOS PARA EDICIÓN ---
-                        // El modal de edición espera que 'role' sea un string (ej: 'admin')
-                        // no un objeto completo. Lo aplanamos aquí para evitar errores.
+                        // DATOS PARA EL MODAL DE EDICIÓN
+
                         originalData: {
                             ...u,
-                            role: u.role ? u.role.name : '' // Pasamos 'admin', 'junior', etc.
+                            role: u.role ? u.role.name : '' 
                         } 
                     };
                 });
@@ -114,7 +119,6 @@ const UserManager = () => {
         }
     };
 
-    // Cargar usuarios al iniciar el componente
     useEffect(() => {
         fetchUsers();
     }, []);
@@ -138,7 +142,6 @@ const UserManager = () => {
     // --- ACCIONES DEL SISTEMA ---
 
     const handleOpenEdit = (user) => {
-        // Pasamos los datos preparados para que el modal funcione bien
         setSelectedUser(user.originalData);
         setShowEditModal(true);
     };

@@ -8,8 +8,6 @@ const CustomAlert = ({ isOpen, type = 'success', title, message, onClose, onConf
 
     const isSuccess = type === 'success';
     const isDelete = type === 'delete';
-
-    // Determinar icono y clase de contenedor
     const iconClass = isSuccess ? styles.iconSuccess : styles.iconDanger;
     const iconBts = isSuccess ? "bi bi-check-lg" : "bi bi-exclamation-lg";
 

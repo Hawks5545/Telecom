@@ -14,7 +14,6 @@ class UserController extends Controller
 {
     public function index()
     {
-        // CAMBIO: Usamos la relación 'role' (definida en el modelo User) en lugar de 'assignedRole'
         return response()->json(User::with('role')->orderBy('id', 'asc')->get());
     }
 
@@ -25,7 +24,6 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'cedula' => 'required|string|max:20|unique:users',
-            // El frontend envía el nombre (ej: 'admin'), validamos que exista en la tabla roles
             'role' => 'required|exists:roles,name', 
         ], [
             'email.unique' => 'Este correo electrónico ya está registrado.',
@@ -36,7 +34,7 @@ class UserController extends Controller
         // 2. TRADUCCIÓN: Buscamos el ID del rol basado en el nombre
         $roleModel = Role::where('name', $request->role)->first();
 
-        // Generamos contraseña temporal aleatoria
+        // Genera contraseña temporal aleatoria
         $tempPassword = Str::random(20); 
 
         // 3. Crear Usuario (SOLO con role_id)
@@ -44,23 +42,16 @@ class UserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'cedula' => $request->cedula,
-            
-            // --- CAMBIO IMPORTANTE: NORMALIZACIÓN ---
-            // Ya NO guardamos la columna 'role' (texto), solo el ID.
             'role_id' => $roleModel->id,   
-            
             'password' => Hash::make($tempPassword),
-            
             // Estado Inicial: Pendiente
-            'is_active' => true,           // Habilitado...
-            'email_verified_at' => null,   // ...pero pendiente de verificar
+            'is_active' => true,     
+            'email_verified_at' => null,   
         ]);
 
         // 4. Enviar correo de activación
         $token = Password::createToken($user);
         $user->sendPasswordResetNotification($token);
-
-        // Cargamos la relación para devolver el objeto completo al frontend
         $user->load('role');
 
         return response()->json([
@@ -91,9 +82,8 @@ class UserController extends Controller
         $user->name = $request->name;
         $user->cedula = $request->cedula;
         
-        // --- CAMBIO IMPORTANTE: Solo actualizamos el ID ---
+        // Solo se actualiza el ID 
         $user->role_id = $roleModel->id;   
-        // $user->role = $request->role; <--- ELIMINADO
         
         $user->is_active = $request->is_active;
 
@@ -113,7 +103,7 @@ class UserController extends Controller
         $message = 'Usuario actualizado correctamente.';
         
         if ($emailChanged) {
-            // Si cambió correo, enviamos nuevo link de activación
+            // Si cambió correo, envia nuevo link de activación
             $token = Password::createToken($user);
             $user->sendPasswordResetNotification($token);
             $message = 'Usuario actualizado. Al cambiar el correo, pasó a estado PENDIENTE hasta verificación.';
@@ -121,7 +111,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => $message,
-            'user' => $user->load('role') // Devolvemos con el rol cargado
+            'user' => $user->load('role') 
         ]);
     }
 

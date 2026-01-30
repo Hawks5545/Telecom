@@ -18,7 +18,6 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
 
     // 2. LÓGICA DE PERMISOS DINÁMICA 
     const canSee = (permissionName) => {
-        // Si el usuario es super-admin (tiene comodín '*') o tiene el permiso exacto
         return userPerms.includes('*') || userPerms.includes(permissionName);
     };
     

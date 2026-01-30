@@ -1,25 +1,21 @@
-import React, { useState, useEffect } from 'react'; // <--- 1. Importamos useEffect
+import React, { useState, useEffect } from 'react'; 
 import styles from './UserModal.module.css';
 
 const UserModal = ({ isOpen, onClose, onSuccess }) => {
-    
-    // Si el modal no está abierto, no renderizamos nada
     if (!isOpen) return null;
 
     // --- ESTADO PARA LA LISTA DE ROLES (DINÁMICO) ---
     const [rolesList, setRolesList] = useState([]);
 
-    // Estado local para los campos del formulario
     const [formData, setFormData] = useState({
         nombre: '',
         apellido: '',
         tipoDoc: 'Cédula de Ciudadanía (C.C)',
         numDoc: '',
         correo: '',
-        rol: '' // Ahora empieza vacío hasta que carguen los roles
+        rol: '' 
     });
 
-    // Estados para manejar la carga y errores
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -28,7 +24,6 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
         const fetchRoles = async () => {
             try {
                 const token = localStorage.getItem('auth_token');
-                // Pide la lista real a tu Base de Datos
                 const response = await fetch('http://127.0.0.1:8000/api/roles', {
                     headers: { 
                         'Authorization': `Bearer ${token}`,
@@ -38,7 +33,7 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                 
                 if (response.ok) {
                     const data = await response.json();
-                    setRolesList(data); // Guardamos los roles que llegaron
+                    setRolesList(data); 
                     
                     // Si hay roles y no hemos seleccionado nada, seleccionamos el primero por defecto
                     if (data.length > 0) {
@@ -51,7 +46,7 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
         };
 
         fetchRoles();
-    }, []); // Se ejecuta una vez al montar el componente
+    }, []); 
 
     const handleChange = (e) => {
         setFormData({
@@ -66,13 +61,11 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
         setError('');
         
         // --- 3. PREPARAR DATOS (SIMPLIFICADO) ---
-        // Ya no necesitamos el "roleMap" porque el select ya tiene el valor correcto
-
         const payload = {
             name: `${formData.nombre} ${formData.apellido}`,
             email: formData.correo,
             cedula: formData.numDoc,
-            role: formData.rol // Enviamos directamente lo que seleccionó (ej: 'practicante_sena')
+            role: formData.rol 
         };
 
         try {
@@ -95,15 +88,14 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
                 if (onSuccess) {
                     onSuccess(); 
                 }
-                
-                // Limpiar formulario
+
                 setFormData({
                     nombre: '',
                     apellido: '',
                     tipoDoc: 'Cédula de Ciudadanía (C.C)',
                     numDoc: '',
                     correo: '',
-                    rol: rolesList[0]?.name || '' // Volver al primer rol por defecto
+                    rol: rolesList[0]?.name || ''
                 });
                 onClose();
             } else {

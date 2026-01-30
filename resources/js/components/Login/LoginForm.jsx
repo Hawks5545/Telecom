@@ -39,20 +39,14 @@ const LoginForm = ({ onBack, onLogin }) => {
 
             // 2. Verificar si el login fue exitoso
             if (response.ok) {
-                // --- AQUÍ ESTÁ LA CLAVE DEL SISTEMA DE ROLES ---
-                // Guardamos el token
                 localStorage.setItem('auth_token', data.token);
-                
-                // Guardamos el objeto usuario COMPLETO (que trae 'role' y 'permissions')
-                // Usamos JSON.stringify porque localStorage solo guarda texto
+            
                 if (data.user) {
                     localStorage.setItem('user_data', JSON.stringify(data.user));
                 }
 
-                // Avisamos al componente padre (LoginContainer) que entramos
                 if (onLogin) onLogin(); 
             } else {
-                // Si falló, mostramos el mensaje del backend
                 setError(data.message || 'Credenciales incorrectas');
             }
 

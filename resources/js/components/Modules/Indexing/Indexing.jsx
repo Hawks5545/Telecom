@@ -7,12 +7,11 @@ const Indexing = () => {
     // --- 1. ESTADOS ---
     const [stats, setStats] = useState({
         detectadas: 0,
-        indexadas: 0, // Esto se actualizará al terminar
+        indexadas: 0, 
         peso: '---', 
         ultima: '---'
     });
 
-    // Ruta por defecto (puedes cambiarla para probar)
     const [folderPath, setFolderPath] = useState('C:/laragon/www/Telecomu/public/storage/audios_prueba'); 
     const [isScanning, setIsScanning] = useState(false);
     const [isIndexing, setIsIndexing] = useState(false);
@@ -93,7 +92,6 @@ const Indexing = () => {
         }
 
         setIsIndexing(true);
-        // No borramos logs anteriores, solo agregamos separador
         addLog('info', '------------------------------------------------');
         addLog('info', '🚀 Iniciando proceso de indexación masiva...');
 

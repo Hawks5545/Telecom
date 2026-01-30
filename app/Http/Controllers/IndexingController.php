@@ -10,9 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class IndexingController extends Controller
 {
-    /**
-     * Helper para normalizar rutas (LA CLAVE DEL ÉXITO)
-     */
+    
     private function normalizePath($inputPath)
     {
         $path = trim($inputPath);
@@ -21,7 +19,7 @@ class IndexingController extends Controller
 
         // Si la ruta NO contiene "C:/" o "/" al inicio, asumimos que es relativa a public/
         if (!str_contains($path, ':') && !str_starts_with($path, '/')) {
-            return public_path($path); // Laravel convierte "pruebaTelecom" en "C:\laragon\...\public\pruebaTelecom"
+            return public_path($path);
         }
 
         return $path;
@@ -30,7 +28,7 @@ class IndexingController extends Controller
     public function scanFolder(Request $request)
     {
         try {
-            // USAMOS EL HELPER PARA ARREGLAR LA RUTA
+            // USA EL HELPER PARA ARREGLAR LA RUTA
             $path = $this->normalizePath($request->input('path'));
 
             if (!is_dir($path)) {
@@ -136,11 +134,8 @@ class IndexingController extends Controller
         }
     }
 
-    // ... (Mantén la función extractMetadata tal cual estaba, esa funcionaba bien) ...
     private function extractMetadata($filename)
     {
-        // (Pega aquí la misma función extractMetadata que te pasé en la respuesta anterior)
-        // ...
         $data = [
             'cedula' => null,
             'telefono' => null,

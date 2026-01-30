@@ -13,7 +13,6 @@ class ConfigurationController extends Controller
     // Obtener todas las rutas configuradas
     public function getStorageLocations()
     {
-        // Traemos todas las rutas ordenadas por las más recientes
         $locations = StorageLocation::orderBy('created_at', 'desc')->get();
         return response()->json($locations);
     }
@@ -29,13 +28,6 @@ class ConfigurationController extends Controller
             'path.required' => 'La ruta es obligatoria.',
             'path.unique' => 'Esta ruta ya está registrada en el sistema.'
         ]);
-
-        // Verificamos si la carpeta existe físicamente en el servidor (Opcional pero recomendado)
-        // Nota: En Windows usa backslash (\), en Linux slash (/)
-        // $exists = is_dir($request->path); 
-        // if (!$exists) {
-        //     return response()->json(['message' => 'La carpeta no existe en el servidor. Verifica la ruta.'], 400);
-        // }
 
         $location = StorageLocation::create([
             'name' => $request->name ?? 'Nueva Ubicación',
@@ -81,7 +73,7 @@ class ConfigurationController extends Controller
 
     public function saveSettings(Request $request)
     {
-        // Recorremos todo lo que envíe el frontend y lo guardamos/actualizamos
+        // Recorre todo lo que envíe el frontend y lo guarda/actualiza
         foreach ($request->all() as $key => $value) {
             Setting::updateOrCreate(
                 ['key' => $key],

@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\IndexingController; // <--- ¡AGREGA ESTA LÍNEA!
+use App\Http\Controllers\IndexingController; 
 
 // --- RUTAS PÚBLICAS ---
 Route::post('/login', [AuthController::class, 'login']);
@@ -19,7 +19,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     //Indexacion
-    // Indexacion (Usando ruta completa para evitar errores de importación)
     Route::post('/indexing/scan', [\App\Http\Controllers\IndexingController::class, 'scanFolder']);
     Route::post('/indexing/run', [\App\Http\Controllers\IndexingController::class, 'runIndexing']);
 

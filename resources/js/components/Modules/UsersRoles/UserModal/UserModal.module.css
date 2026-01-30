@@ -1,44 +1,86 @@
 /* resources/js/components/Modules/UserModal/UserModal.module.css */
 
+/* =========================================
+   1. ESTRUCTURA PRINCIPAL (Overlay y Modal)
+   ========================================= */
+
 .modalOverlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
-    display: flex; justify-content: center; align-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     z-index: 1050;
+    backdrop-filter: blur(3px);
     animation: fadeIn 0.3s ease-out;
-    backdrop-filter: blur(3px); 
 }
 
 .modalContent {
     background-color: white;
-    width: 650px; 
+    width: 650px;
     max-width: 95%;
     border-radius: 12px;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
     overflow: hidden;
     animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+/* =========================================
+   2. CABECERA (Header)
+   ========================================= */
+
 .modalHeader {
+    /* Gradiente Teal/Verde para "Crear Nuevo" */
     background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
-    color: white; padding: 1rem 1.5rem;
-    display: flex; justify-content: space-between; align-items: center;
+    color: white;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.modalTitle { margin: 0; font-size: 1.1rem; font-weight: 600; }
-.btnClose { background: transparent; border: none; color: white; font-size: 1.2rem; cursor: pointer; opacity: 0.8; transition: opacity 0.2s; }
-.btnClose:hover { opacity: 1; transform: scale(1.1); }
-
-.modalBody { padding: 1.5rem 2rem; }
-
-.modalFooter {
-    padding: 1rem 1.5rem; background-color: #f8f9fa; border-top: 1px solid #e9ecef;
-    display: flex; justify-content: flex-end; gap: 12px;
+.modalTitle {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
 }
 
-.label { font-weight: 600; color: #495057; font-size: 0.85rem; margin-bottom: 0.4rem; display: block; }
+.btnClose {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: all 0.2s;
+}
 
-/* Inputs deshabilitados se ven más claros pero legibles */
+.btnClose:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* =========================================
+   3. CUERPO (Body) Y ELEMENTOS DE FORMULARIO
+   ========================================= */
+
+.modalBody {
+    padding: 1.5rem 2rem;
+}
+
+.label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+    display: block;
+}
+
+/* Inputs deshabilitados (Visualmente claros pero bloqueados) */
 .formControlDisabled {
     background-color: #e9ecef;
     opacity: 1;
@@ -46,18 +88,77 @@
     cursor: not-allowed;
 }
 
+/* Alerta informativa pequeña dentro del modal */
 .alertInfo {
-    font-size: 0.8rem; background-color: #cff4fc; color: #055160; 
-    padding: 0.5rem; border-radius: 6px; margin-top: 5px; display: flex; align-items: center;
+    font-size: 0.8rem;
+    background-color: #cff4fc;
+    color: #055160;
+    padding: 0.5rem;
+    border-radius: 6px;
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
 }
 
-/* Botones */
-.btnCancel { border: 1px solid #ced4da; background: white; color: #495057; padding: 0.5rem 1.2rem; border-radius: 6px; font-weight: 500; transition: all 0.2s; }
-.btnCancel:hover { background: #e9ecef; }
+/* =========================================
+   4. FOOTER Y BOTONES
+   ========================================= */
 
-.btnSave { background-color: #005461; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; font-weight: 500; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0, 84, 97, 0.3); }
-.btnSave:hover { background-color: #003d46; transform: translateY(-1px); }
+.modalFooter {
+    padding: 1rem 1.5rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
 
-/* Animaciones */
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.btnCancel {
+    border: 1px solid #ced4da;
+    background: white;
+    color: #495057;
+    padding: 0.5rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btnCancel:hover {
+    background: #e9ecef;
+}
+
+.btnSave {
+    background-color: #005461;
+    color: white;
+    border: none;
+    padding: 0.5rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 500;
+    box-shadow: 0 2px 5px rgba(0, 84, 97, 0.3);
+    transition: all 0.2s;
+}
+
+.btnSave:hover {
+    background-color: #003d46;
+    transform: translateY(-1px);
+}
+
+/* =========================================
+   5. ANIMACIONES
+   ========================================= */
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

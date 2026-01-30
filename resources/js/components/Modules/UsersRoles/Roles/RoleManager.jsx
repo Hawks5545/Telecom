@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from './RoleManager.module.css';
-
-// Importamos Modales
 import RoleModal from '../RoleModal/RoleModal'; 
 import EditRoleModal from '../EditRoleModal/EditRoleModal';
-
-// Importamos la Alerta Personalizada
 import CustomAlert from '../../../Common/CustomAlert/CustomAlert'; 
 
 const RoleManager = () => {
@@ -95,13 +91,12 @@ const RoleManager = () => {
                 }
             });
 
-            const data = await response.json(); // Leemos el mensaje del backend
+            const data = await response.json(); 
 
             if (response.ok) {
-                fetchRoles(); // Recargar lista
+                fetchRoles(); 
                 showAlert('success', 'Rol Eliminado', 'El rol ha sido removido correctamente.');
             } else {
-                // Muestra el error del backend (ej: "No puedes borrar este rol porque hay usuarios asignados")
                 showAlert('error', 'Acción Denegada', data.message || 'No se pudo eliminar el rol.');
             }
         } catch (error) {
@@ -112,14 +107,14 @@ const RoleManager = () => {
     // 2. CREAR ROL
     const handleRoleCreated = () => {
         setShowCreateModal(false);
-        fetchRoles(); // Recargar de la DB
+        fetchRoles(); 
         showAlert('success', 'Rol Creado', 'El nuevo perfil de permisos está listo para usarse.');
     };
 
     // 3. EDITAR ROL
     const handleRoleUpdated = () => {
         setShowEditModal(false);
-        fetchRoles(); // Recargar de la DB
+        fetchRoles(); 
         showAlert('success', 'Permisos Actualizados', 'La configuración del rol ha sido modificada.');
     };
 

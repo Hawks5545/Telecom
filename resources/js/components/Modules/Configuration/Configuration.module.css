@@ -52,7 +52,7 @@
     background: transparent;
     border-radius: 8px;
     font-weight: 600;
-    color: #5a6a6d; /* Gris suave */
+    color: #5a6a6d; 
     transition: all 0.2s ease;
     display: flex;
     align-items: center;

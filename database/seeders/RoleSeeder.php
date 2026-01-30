@@ -11,9 +11,8 @@ class RoleSeeder extends Seeder
     public function run(): void
     {
         // 1. ADMIN - FORZAR MINÚSCULA
-        // Buscamos el rol por ID 1 o por nombre, y lo forzamos a ser 'admin'
         $admin = Role::updateOrCreate(['id' => 1], [
-            'name' => 'admin', // <--- ESTO ES LO QUE QUEREMOS (minúscula)
+            'name' => 'admin',
             'display_name' => 'Administrador',
             'description' => 'Control total del sistema',
             'permissions' => [
@@ -28,8 +27,7 @@ class RoleSeeder extends Seeder
             ],
         ]);
 
-        // TRUCO: A veces updateOrCreate no detecta el cambio de mayúscula a minúscula.
-        // Hacemos un update directo por SQL para asegurarnos al 100%
+    
         DB::table('roles')->where('id', 1)->update(['name' => 'admin']);
 
 

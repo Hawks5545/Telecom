@@ -7,8 +7,8 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
     
     // Estados nuevos para manejar la respuesta del servidor
     const [isLoading, setIsLoading] = useState(false);
-    const [message, setMessage] = useState(null); // Mensaje de éxito (Verde)
-    const [error, setError] = useState(null);     // Mensaje de error (Rojo)
+    const [message, setMessage] = useState(null); 
+    const [error, setError] = useState(null);    
 
     if (!isOpen) return null;
 

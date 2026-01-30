@@ -68,9 +68,7 @@ class FolderManagerController extends Controller
         return response()->json($formattedFiles);
     }
 
-    /**
-     * Descarga un ARCHIVO individual
-     */
+    /*Descarga un ARCHIVO individual*/
     public function downloadItem($id)
     {
         $recording = Recording::findOrFail($id);
@@ -80,25 +78,22 @@ class FolderManagerController extends Controller
         return response()->download($recording->path, $recording->filename);
     }
 
-    /**
-     * --- ¡NUEVO! ---
-     * Descarga una CARPETA completa como ZIP
-     */
+    /*Descarga una CARPETA completa como ZIP*/
     public function downloadFolder($id)
     {
-        // 1. Buscamos la carpeta (Ubicación)
+        // 1. Busca la carpeta (Ubicación)
         $location = StorageLocation::findOrFail($id);
         
-        // 2. Buscamos todos sus archivos
+        // 2. Busca todos sus archivos
         $recordings = Recording::where('storage_location_id', $id)->get();
 
         if ($recordings->isEmpty()) {
             return response()->json(['message' => 'La carpeta está vacía, nada que comprimir.'], 400);
         }
 
-        // 3. Preparamos el ZIP
+        // 3. Prepara el ZIP
         $zipName = 'carpeta_' . preg_replace('/[^A-Za-z0-9\-]/', '_', $location->name) . '_' . date('His') . '.zip';
-        $tempPath = sys_get_temp_dir() . '/' . $zipName; // Guardamos en temporales del sistema
+        $tempPath = sys_get_temp_dir() . '/' . $zipName; 
 
         $zip = new ZipArchive;
         if ($zip->open($tempPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
@@ -106,7 +101,7 @@ class FolderManagerController extends Controller
             
             foreach ($recordings as $rec) {
                 if (file_exists($rec->path)) {
-                    // Añadimos el archivo al ZIP con su nombre original
+                    // Añade el archivo al ZIP con su nombre original
                     $zip->addFile($rec->path, $rec->filename);
                     $filesAdded++;
                 }

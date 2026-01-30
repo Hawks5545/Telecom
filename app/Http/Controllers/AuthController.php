@@ -48,9 +48,8 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // --- CARGA DE ROLES (NORMALIZACIÓN) ---
+        // --- CARGA DE ROLES ---
         
-        // Cargamos la relación definida en User.php (función role())
         $user->load('role'); 
 
         // Valores por defecto por seguridad
@@ -58,14 +57,13 @@ class AuthController extends Controller
         $rolVisible = 'Analista'; 
         $permisos = [];
 
-        // Si el usuario tiene un rol asignado en la BD, sacamos los datos de ahí
         if ($user->role) {
-            $rolInterno = $user->role->name;         // Ej: 'admin'
-            $rolVisible = $user->role->display_name; // Ej: 'Administrador'
+            $rolInterno = $user->role->name;         
+            $rolVisible = $user->role->display_name; 
 
-            // Lógica de Permisos
+            // Lgica Permisos
             if ($rolInterno === 'admin') {
-                $permisos = ['*']; // Admin tiene todo
+                $permisos = ['*'];
             } else {
                 $permisos = $user->role->permissions ?? [];
             }
@@ -78,8 +76,6 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                
-                // AQUÍ LA MAGIA: El frontend recibe 'admin', pero lo sacamos de la tabla roles
                 'role' => $rolInterno,          
                 'role_display' => $rolVisible, 
                 'permissions' => $permisos,
@@ -110,7 +106,7 @@ class AuthController extends Controller
         return response()->json(['message' => 'No pudimos enviar el correo. Verifica que el usuario exista.'], 400);
     }
 
-    // Restablecer la contraseña (Y ACTIVAR CUENTA)
+    // Restablecer la contraseña (Y activar cuenta)
     public function resetPassword(Request $request)
     {
         $request->validate([
@@ -133,7 +129,7 @@ class AuthController extends Controller
                 // --- ACTIVACIÓN AUTOMÁTICA ---
                 if ($user->email_verified_at === null) {
                     $user->email_verified_at = now();
-                    $user->is_active = true; // Aseguramos que se active
+                    $user->is_active = true; 
                 }
 
                 $user->save();

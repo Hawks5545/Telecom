@@ -46,7 +46,6 @@ const RoleModal = ({ isOpen, onClose, onSuccess }) => {
 
         const token = localStorage.getItem('auth_token');
 
-        // Enviamos los datos junto con el array de permisos de módulos
         const payload = {
             ...formData,
             permisos: selectedPerms 
@@ -70,8 +69,6 @@ const RoleModal = ({ isOpen, onClose, onSuccess }) => {
                 setSelectedPerms([]);
                 onSuccess(); 
             } else {
-                // Si sale el error de "Mass Assignment", 
-                // recuerda agregar 'name' al array $fillable en el modelo Role de Laravel.
                 setError(data.message || 'Error al crear el rol');
             }
         } catch (err) {

@@ -5,11 +5,12 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     
     if (!isOpen || !user) return null;
     
-    // Protegemos al Super Admin (ID 1)
     const isSuperAdmin = user.id === 1;
 
+    // --- ESTADO AHORA SEPARADO ---
     const [formData, setFormData] = useState({
-        name: '',
+        nombre: '',    
+        apellido: '',   
         email: '',
         cedula: '',
         role: '',
@@ -17,24 +18,50 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [roles, setRoles] = useState([]); // Roles dinámicos
+    const [roles, setRoles] = useState([]); 
     const [error, setError] = useState('');
 
-    // CARGAR DATOS INICIALES (Pre-llenado)
+    // --- FUNCIÓN HELPER PARA SEPARAR NOMBRES ---
+    const splitName = (fullName) => {
+        if (!fullName) return { nombre: '', apellido: '' };
+        const parts = fullName.trim().split(/\s+/); 
+
+        if (parts.length >= 4) {
+            return {
+                nombre: parts.slice(0, 2).join(' '),
+                apellido: parts.slice(2).join(' ')
+            };
+        } else if (parts.length === 3) {
+            return {
+                nombre: parts[0],
+                apellido: parts.slice(1).join(' ')
+            };
+        } else {
+            return {
+                nombre: parts[0],
+                apellido: parts.slice(1).join(' ') || ''
+            };
+        }
+    };
+
+    // --- CARGAR DATOS AL ABRIR ---
     useEffect(() => {
         if (user) {
+            // 1. Aplicamos la lógica de separación
+            const { nombre, apellido } = splitName(user.name);
+
             setFormData({
-                name: user.name || '',
+                nombre: nombre,
+                apellido: apellido,
                 email: user.email || '',
                 cedula: user.cedula || '',
-                role: user.role || 'analista', // Texto (ej: 'analista')
+                role: user.role || 'analista', 
                 is_active: user.is_active ? 1 : 0
             });
         }
         fetchRoles();
     }, [user]);
 
-    // Obtener roles desde la API
     const fetchRoles = async () => {
         const token = localStorage.getItem('auth_token');
         try {
@@ -47,14 +74,11 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-
-        // VALIDACIÓN: Cédula solo números
         if (name === 'cedula') {
             const numericValue = value.replace(/[^0-9]/g, '');
             setFormData({ ...formData, [name]: numericValue });
             return;
         }
-
         setFormData({ ...formData, [name]: value });
     };
 
@@ -62,6 +86,9 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
         setIsSubmitting(true);
         setError('');
         const token = localStorage.getItem('auth_token');
+
+        // --- UNIR NOMBRE Y APELLIDO PARA ENVIAR AL BACKEND ---
+        const fullNameCombined = `${formData.nombre} ${formData.apellido}`.trim();
 
         try {
             const response = await fetch(`http://127.0.0.1:8000/api/users/${user.id}`, {
@@ -72,7 +99,10 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
-                    ...formData,
+                    name: fullNameCombined, 
+                    email: formData.email,
+                    cedula: formData.cedula,
+                    role: formData.role,
                     is_active: parseInt(formData.is_active) 
                 })
             });
@@ -107,20 +137,32 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                     {error && <div className="alert alert-danger p-2 small text-center">{error}</div>}
 
                     <form className="row g-3" onSubmit={(e) => e.preventDefault()}>
-                        {/* NOMBRE (Editable) */}
-                        <div className="col-md-12">
-                            <label className={styles.label}>Nombre Completo</label>
+                        
+                        {/* --- AHORA SON DOS CAMPOS SEPARADOS --- */}
+                        <div className="col-md-6">
+                            <label className={styles.label}>Nombres</label>
                             <input 
                                 type="text" 
-                                name="name"
+                                name="nombre"
                                 className="form-control" 
-                                value={formData.name} 
+                                value={formData.nombre} 
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        <div className="col-md-6">
+                            <label className={styles.label}>Apellidos</label>
+                            <input 
+                                type="text" 
+                                name="apellido"
+                                className="form-control" 
+                                value={formData.apellido} 
                                 onChange={handleChange}
                                 required
                             />
                         </div>
 
-                        {/* CÉDULA (Editable + Validación Numérica) */}
+                        {/* CÉDULA */}
                         <div className="col-md-6">
                             <label className={styles.label}>Documento (Solo Números)</label>
                             <input 
@@ -129,12 +171,11 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                                 className="form-control" 
                                 value={formData.cedula} 
                                 onChange={handleChange}
-                                placeholder="Ej: 1000123456"
                                 required
                             />
                         </div>
 
-                        {/* CORREO (Editable + Aviso de seguridad) */}
+                        {/* CORREO */}
                         <div className="col-md-6">
                             <label className={styles.label}>Correo Electrónico</label>
                             <input 
@@ -148,14 +189,14 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                             {formData.email !== user.email && (
                                 <small className="text-warning d-block mt-1" style={{fontSize: '0.75rem'}}>
                                     <i className="bi bi-exclamation-triangle me-1"></i>
-                                    Al guardar, el estado cambiará a PENDIENTE hasta verificar el nuevo correo.
+                                    Al guardar, el estado cambiará a PENDIENTE.
                                 </small>
                             )}
                         </div>
 
                         <hr className="my-4" />
 
-                        {/* ROL (Select Dinámico) */}
+                        {/* ROL */}
                         <div className="col-md-6">
                             <label className={styles.label}>Rol de Sistema</label>
                             <select 
@@ -163,7 +204,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                                 name="role" 
                                 value={formData.role} 
                                 onChange={handleChange}
-                                disabled={isSuperAdmin} // Protege al Admin Principal
+                                disabled={isSuperAdmin} 
                             >
                                 {roles.length > 0 ? roles.map(r => (
                                     <option key={r.id} value={r.name}>{r.display_name}</option>
@@ -173,7 +214,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                             </select>
                         </div>
 
-                        {/* ESTADO (Activo/Inactivo) */}
+                        {/* ESTADO */}
                         <div className="col-md-6">
                             <label className={styles.label}>Estado de Acceso</label>
                             {isSuperAdmin ? (
@@ -192,9 +233,6 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                                     <option value={0} className="text-danger fw-bold">Bloqueado (Inactivo)</option>
                                 </select>
                             )}
-                            <small className="text-muted" style={{fontSize: '0.7rem'}}>
-                                * Si el usuario está "Pendiente", este campo solo controla el bloqueo manual.
-                            </small>
                         </div>
                     </form>
                 </div>

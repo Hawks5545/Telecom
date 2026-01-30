@@ -1,12 +1,22 @@
 /* resources/js/components/Modules/UsersRoles/Roles/RoleManager.module.css */
 
-/* --- CABECERA Y TÍTULOS --- */
+/* --- 1. CONTENEDOR PRINCIPAL (Efecto Tarjeta) --- */
+.cardWrapper {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.05);
+    overflow: hidden; 
+    margin-bottom: 2rem;
+}
+
+/* --- 2. CABECERA DE LA SECCIÓN --- */
 .sectionHeader {
     padding: 1.5rem; 
     display: flex; 
     justify-content: space-between; 
     align-items: center; 
     border-bottom: 1px solid #f0f0f0;
+    background-color: white;
 }
 
 .sectionTitle { 
@@ -16,7 +26,7 @@
     margin: 0; 
 }
 
-/* --- BOTONES PRINCIPALES --- */
+/* --- 3. BOTÓN NUEVO ROL --- */
 .btnAdd {
     background-color: #3BC1A8; 
     color: white; 
@@ -25,32 +35,76 @@
     border-radius: 8px; 
     padding: 8px 16px; 
     transition: transform 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .btnAdd:hover { 
     background-color: #2ea891; 
-    color: white; 
-    transform: translateY(-2px); 
+    color: white;
+    transform: translateY(-2px);
 }
 
-/* --- ESTILOS DE TABLA --- */
-.tableHeader { 
-    background: linear-gradient(90deg, #005461 0%, #0C7779 100%); 
-    color: white; 
+/* --- 4. ENVOLTORIO DE TABLA --- */
+.tableWrapper {
+    width: 100%;
+    overflow-x: auto; 
 }
 
+/* --- 5. ESTILOS DE TABLA (HEADER) --- */
+.tableHeader th { 
+    background-color: #005461 !important; 
+    color: white !important;
+    font-weight: 600; 
+    border: none;
+    padding: 1rem;
+    position: sticky; 
+    top: 0;
+}
+
+/* --- 6. ESTILOS DE FILAS --- */
+.tableRow td {
+    padding: 1rem;
+    vertical-align: middle;
+    color: #495057;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+/* --- 7. ETIQUETAS DE PERMISOS (Exclusivo de Roles) --- */
 .permTag {
     display: inline-block; 
-    background-color: #e9ecef; 
-    color: #495057;
-    padding: 2px 8px; 
-    border-radius: 4px; 
+    background-color: #f8f9fa; 
+    color: #596168;
+    padding: 4px 10px; 
+    border-radius: 20px; 
     font-size: 0.75rem;
-    margin-right: 4px; 
+    margin-right: 5px; 
     border: 1px solid #dee2e6;
+    font-weight: 500;
 }
 
-/* --- ACCIONES --- */
+.fullAccessBadge {
+    background-color: #198754; 
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.moreBadge {
+    background-color: #6c757d;
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+    margin-left: 2px;
+}
+/* --- 8. ACCIONES (Igualado a Usuarios) --- */
 .actionLink { 
     text-decoration: none; 
     font-weight: 500; 

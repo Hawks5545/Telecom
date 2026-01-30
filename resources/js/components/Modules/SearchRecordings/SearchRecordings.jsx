@@ -49,7 +49,7 @@ const SearchRecordings = () => {
 
     // --- MANEJADORES DE EVENTOS ---
     
-    // A. Lógica de Checkbox
+    // Logica de Checkbox
     const handleSelectAll = (e) => {
         if (e.target.checked) {
             const allCurrentIds = currentItems.map(item => item.id);
@@ -68,7 +68,7 @@ const SearchRecordings = () => {
         }
     };
 
-    // B. Lógica de Descarga Masiva (CON ALERTA)
+    // Evento de Descarga Masiva (CON ALERTA)
     const handleMassiveDownload = () => {
         showAlert(
             'info', 
@@ -93,7 +93,6 @@ const SearchRecordings = () => {
     // C. Descarga Individual (DIRECTA - SIN ALERTA)
     const handleSingleDownload = (filename) => {
         console.log(`Descargando archivo individual: ${filename}`);
-        // Aquí iría tu lógica real de window.open o similar
     };
 
     const isAllSelected = currentItems.length > 0 && currentItems.every(item => selectedItems.includes(item.id));

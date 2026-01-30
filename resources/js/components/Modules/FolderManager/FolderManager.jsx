@@ -5,8 +5,8 @@ import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 const FolderManager = () => {
     
     // --- ESTADOS ---
-    const [fileSystemData, setFileSystemData] = useState([]); // Datos que vienen de la BD
-    const [currentFolderId, setCurrentFolderId] = useState(0); // 0 = Raíz (Discos)
+    const [fileSystemData, setFileSystemData] = useState([]); 
+    const [currentFolderId, setCurrentFolderId] = useState(0); 
     const [isLoading, setIsLoading] = useState(false);
     
     // Filtros
@@ -39,7 +39,6 @@ const FolderManager = () => {
         setIsLoading(true);
         const token = localStorage.getItem('auth_token');
         
-        // Construimos la URL con los filtros actuales
         const params = new URLSearchParams({
             parentId: currentFolderId,
             search: searchTerm,
@@ -54,7 +53,6 @@ const FolderManager = () => {
             
             if (response.ok) {
                 const data = await response.json();
-                // Si la API devuelve paginación (data.data), usamos eso. Si devuelve array directo, usamos data.
                 setFileSystemData(data.data || data); 
             } else {
                 console.error("Error al cargar datos del servidor");
@@ -68,7 +66,6 @@ const FolderManager = () => {
 
     // Efecto para recargar cuando cambian los filtros o la carpeta
     useEffect(() => {
-        // Usamos un pequeño retraso (debounce) para la búsqueda de texto
         const timer = setTimeout(() => {
             fetchItems();
         }, 500);
@@ -81,7 +78,6 @@ const FolderManager = () => {
     const handleOpenFolder = (folder) => {
         setCurrentFolderId(folder.id);
         setBreadcrumbs([...breadcrumbs, { id: folder.id, name: folder.name }]);
-        // Limpiamos búsqueda al entrar a una carpeta para ver todo su contenido
         setSearchTerm(''); 
     };
 
@@ -94,7 +90,6 @@ const FolderManager = () => {
     // --- 3. LÓGICA DE DESCARGA REAL ---
     const handleDownload = (item) => {
         if (item.type === 'folder') {
-            // A futuro podrías implementar descarga de ZIP aquí
             showAlert('warning', 'Descarga de Carpeta', 'La descarga masiva de carpetas completas aún no está disponible. Por favor ingresa y descarga los archivos individualmente.');
         } else {
             showAlert(
@@ -109,22 +104,20 @@ const FolderManager = () => {
     const executeDownload = async (item) => {
         const token = localStorage.getItem('auth_token');
         try {
-            // Hacemos la petición esperando un archivo (BLOB)
             const response = await fetch(`http://127.0.0.1:8000/api/folder-manager/download/${item.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
             if (response.ok) {
-                // Truco del navegador para descargar el archivo recibido
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = item.name; // Usamos el nombre original
+                a.download = item.name; 
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
-                window.URL.revokeObjectURL(url); // Limpieza de memoria
+                window.URL.revokeObjectURL(url); 
                 
                 showAlert('success', 'Descarga Exitosa', 'El archivo se ha guardado en tu equipo.');
             } else {

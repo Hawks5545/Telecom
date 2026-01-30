@@ -16,11 +16,8 @@ class StorageLocation extends Model
         'is_active'
     ];
 
-    // Helper para asegurar que la ruta siempre termine en slash (/)
-    // Esto evita errores como "C:/AudiosArchivo.mp3"
     public function setPathAttribute($value)
     {
-        // Normaliza las barras a formato Linux (/) y asegura el final
         $cleanPath = str_replace('\\', '/', $value);
         $this->attributes['path'] = rtrim($cleanPath, '/') . '/';
     }
