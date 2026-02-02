@@ -6,10 +6,12 @@ use Illuminate\Http\Request;
 use App\Models\Recording;        
 use App\Models\StorageLocation;  
 use ZipArchive;                  
+use Illuminate\Support\Facades\Log;
+// Importamos File para manejar rutas y limpieza
+use Illuminate\Support\Facades\File;
 
 class FolderManagerController extends Controller
 {
-    
     public function getItems(Request $request)
     {
         $parentId = $request->input('parentId', 0);
@@ -17,9 +19,11 @@ class FolderManagerController extends Controller
         $dateFrom = $request->input('dateFrom');
         $dateTo = $request->input('dateTo');
 
+        // --- NIVEL RAÍZ (CARPETAS/UBICACIONES) ---
         if ($parentId == 0) {
             $locations = StorageLocation::where('is_active', true)->get();
-            $folders = $locations->map(function($loc) {
+            
+            return response()->json($locations->map(function($loc) {
                 return [
                     'id' => $loc->id,
                     'parentId' => 0,
@@ -29,14 +33,14 @@ class FolderManagerController extends Controller
                     'date' => $loc->created_at->format('Y-m-d'),
                     'path' => $loc->path
                 ];
-            });
-            return response()->json($folders);
+            }));
         }
 
+        // --- NIVEL DE ARCHIVOS (GRABACIONES) ---
         $query = Recording::where('storage_location_id', $parentId);
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+             $query->where(function($q) use ($search) {
                 $q->where('filename', 'like', "%{$search}%")
                   ->orWhere('cedula', 'like', "%{$search}%")
                   ->orWhere('telefono', 'like', "%{$search}%")
@@ -47,20 +51,28 @@ class FolderManagerController extends Controller
         if ($dateFrom) $query->whereDate('fecha_grabacion', '>=', $dateFrom);
         if ($dateTo) $query->whereDate('fecha_grabacion', '<=', $dateTo);
 
-        $files = $query->latest('fecha_grabacion')->paginate(50);
+        $files = $query->latest('original_created_at')->paginate(50); 
 
         $formattedFiles = collect($files->items())->map(function($file) use ($parentId) {
+            $displayDate = 'N/A';
+            if ($file->original_created_at) {
+                $displayDate = $file->original_created_at->format('Y-m-d H:i');
+            } elseif ($file->fecha_grabacion) {
+                $displayDate = $file->fecha_grabacion->format('Y-m-d H:i');
+            }
+
             return [
                 'id' => $file->id,
                 'parentId' => $parentId,
                 'name' => $file->filename,
                 'type' => 'file',
                 'items' => 0,
-                'date' => $file->fecha_grabacion ? $file->fecha_grabacion->format('Y-m-d H:i') : 'N/A',
+                'date' => $displayDate,
                 'duration' => gmdate("H:i:s", $file->duration ?? 0),
                 'meta' => [ 
                     'cedula' => $file->cedula,
-                    'campana' => $file->campana
+                    'campana' => $file->campana,
+                    'folder' => $file->folder_path 
                 ]
             ];
         });
@@ -68,55 +80,76 @@ class FolderManagerController extends Controller
         return response()->json($formattedFiles);
     }
 
-    /*Descarga un ARCHIVO individual*/
     public function downloadItem($id)
     {
         $recording = Recording::findOrFail($id);
-        if (!file_exists($recording->path)) {
+        $pathToUse = $recording->full_path ?? $recording->path;
+
+        if (!file_exists($pathToUse)) {
             return response()->json(['message' => 'Archivo no encontrado en disco.'], 404);
         }
-        return response()->download($recording->path, $recording->filename);
+        return response()->download($pathToUse, $recording->filename);
     }
 
-    /*Descarga una CARPETA completa como ZIP*/
+    // --- DESCARGA DE CARPETA COMPLETA (ZIP MEJORADO) ---
     public function downloadFolder($id)
     {
-        // 1. Busca la carpeta (Ubicación)
-        $location = StorageLocation::findOrFail($id);
-        
-        // 2. Busca todos sus archivos
-        $recordings = Recording::where('storage_location_id', $id)->get();
+        try {
+            // Verificar si la extensión ZIP está activa
+            if (!class_exists('ZipArchive')) {
+                return response()->json(['message' => 'La extensión PHP ZipArchive no está habilitada en el servidor.'], 500);
+            }
 
-        if ($recordings->isEmpty()) {
-            return response()->json(['message' => 'La carpeta está vacía, nada que comprimir.'], 400);
-        }
+            $location = StorageLocation::findOrFail($id);
+            $recordings = Recording::where('storage_location_id', $id)->get();
 
-        // 3. Prepara el ZIP
-        $zipName = 'carpeta_' . preg_replace('/[^A-Za-z0-9\-]/', '_', $location->name) . '_' . date('His') . '.zip';
-        $tempPath = sys_get_temp_dir() . '/' . $zipName; 
+            if ($recordings->isEmpty()) {
+                return response()->json(['message' => 'La carpeta está vacía.'], 400);
+            }
 
-        $zip = new ZipArchive;
-        if ($zip->open($tempPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
-            $filesAdded = 0;
-            
-            foreach ($recordings as $rec) {
-                if (file_exists($rec->path)) {
-                    // Añade el archivo al ZIP con su nombre original
-                    $zip->addFile($rec->path, $rec->filename);
-                    $filesAdded++;
+            // 1. Crear carpeta temporal dentro de Laravel (storage/app/temp)
+            $tempDir = storage_path('app/temp');
+            if (!File::exists($tempDir)) {
+                File::makeDirectory($tempDir, 0755, true);
+            }
+
+            // 2. Definir nombre y ruta del ZIP
+            $cleanName = preg_replace('/[^A-Za-z0-9\-]/', '_', $location->name ?? 'Export');
+            $zipName = 'backup_' . $cleanName . '_' . date('His') . '.zip';
+            $zipPath = $tempDir . '/' . $zipName; 
+
+            $zip = new ZipArchive;
+            if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
+                $filesAdded = 0;
+                
+                foreach ($recordings as $rec) {
+                    $realPath = $rec->full_path ?? $rec->path;
+
+                    if (file_exists($realPath)) {
+                        // Recrear estructura de carpetas
+                        $zipInternalPath = ($rec->folder_path ? $rec->folder_path . '/' : '') . $rec->filename;
+                        $zip->addFile($realPath, $zipInternalPath);
+                        $filesAdded++;
+                    }
                 }
+                
+                $zip->close();
+
+                if ($filesAdded === 0) {
+                    // Si no se añadió nada, borramos el zip vacío si se creó
+                    if (file_exists($zipPath)) unlink($zipPath);
+                    return response()->json(['message' => 'Error: Los archivos existen en BD pero no físicamente.'], 404);
+                }
+
+                // 3. Entregar descarga y borrar después
+                return response()->download($zipPath)->deleteFileAfterSend(true);
             }
             
-            $zip->close();
+            return response()->json(['message' => 'No se pudo crear el archivo ZIP (Permisos).'], 500);
 
-            if ($filesAdded === 0) {
-                return response()->json(['message' => 'Los archivos existen en base de datos pero no en el disco físico.'], 404);
-            }
-
-            // 4. Entregamos el ZIP y lo borramos del servidor al terminar
-            return response()->download($tempPath)->deleteFileAfterSend(true);
-        } else {
-            return response()->json(['message' => 'No se pudo crear el archivo ZIP.'], 500);
+        } catch (\Throwable $e) {
+            Log::error("ZIP Error: " . $e->getMessage());
+            return response()->json(['message' => 'Error interno: ' . $e->getMessage()], 500);
         }
     }
 }

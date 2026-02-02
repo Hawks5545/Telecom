@@ -6,6 +6,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\IndexingController; 
+use App\Http\Controllers\FolderManagerController;
+use App\Http\Controllers\ConfigurationController;
 
 // --- RUTAS PÚBLICAS ---
 Route::post('/login', [AuthController::class, 'login']);
@@ -25,7 +27,8 @@ Route::middleware('auth:sanctum')->group(function () {
     //Gestor de carpetas
     Route::get('/folder-manager/items', [App\Http\Controllers\FolderManagerController::class, 'getItems']);
     Route::get('/folder-manager/download/{id}', [App\Http\Controllers\FolderManagerController::class, 'downloadItem']);
-    
+    Route::get('/folder-manager/download-folder/{id}', [FolderManagerController::class, 'downloadFolder']);
+
     // Usuarios
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);

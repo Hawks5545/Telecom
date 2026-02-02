@@ -120,15 +120,24 @@ const Indexing = () => {
                 }));
                 
                 addLog('success', `PROCESO FINALIZADO.`);
-                addLog('success', `✅ Nuevos indexados: ${data.indexed}`);
-                addLog('warning', `⏭️ Omitidos (Duplicados): ${data.skipped}`);
                 
-                showAlert('success', 'Indexación Exitosa', `Se procesaron ${data.indexed} archivos correctamente.`);
+                if (data.indexed > 0) addLog('success', `✅ Nuevos indexados: ${data.indexed}`);
+                if (data.skipped > 0) addLog('warning', `⏭️ Omitidos (Duplicados): ${data.skipped}`);
+                
+                // --- AQUI ESTA EL CAMBIO: Usamos los datos dinámicos del backend ---
+                showAlert(
+                    data.status_type || 'success', // Usa 'warning' si lo manda el backend
+                    data.title_msg || 'Proceso Finalizado', 
+                    data.message || `Se procesaron ${data.indexed} archivos.`
+                );
+
             } else {
                 addLog('error', `Error crítico: ${data.message}`);
+                showAlert('error', 'Error del Servidor', data.message);
             }
         } catch (error) {
             addLog('error', 'Error de conexión o timeout (si son muchos archivos).');
+            showAlert('error', 'Error de Conexión', 'No se pudo conectar con el servidor.');
         } finally {
             setIsIndexing(false);
         }

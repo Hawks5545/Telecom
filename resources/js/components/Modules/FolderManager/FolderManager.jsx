@@ -87,44 +87,63 @@ const FolderManager = () => {
         setSearchTerm('');
     };
 
-    // --- 3. LÓGICA DE DESCARGA REAL ---
+    // --- 3. LÓGICA DE DESCARGA UNIFICADA (ARCHIVO Y CARPETA) ---
     const handleDownload = (item) => {
-        if (item.type === 'folder') {
-            showAlert('warning', 'Descarga de Carpeta', 'La descarga masiva de carpetas completas aún no está disponible. Por favor ingresa y descarga los archivos individualmente.');
-        } else {
-            showAlert(
-                'info',
-                'Descargar Audio',
-                `¿Deseas descargar el archivo "${item.name}"?`,
-                () => executeDownload(item)
-            );
-        }
+        const isFolder = item.type === 'folder';
+        
+        // Mensaje personalizado según el tipo
+        const title = isFolder ? 'Descargar Carpeta ZIP' : 'Descargar Archivo';
+        const msg = isFolder 
+            ? `¿Deseas comprimir y descargar todo el contenido de "${item.name}"? Esto puede tardar unos segundos.` 
+            : `¿Deseas descargar el archivo "${item.name}"?`;
+
+        showAlert(
+            'info',
+            title,
+            msg,
+            () => executeDownload(item)
+        );
     };
 
     const executeDownload = async (item) => {
         const token = localStorage.getItem('auth_token');
+        const isFolder = item.type === 'folder';
+
+        // Determinar la URL correcta (Archivo vs Carpeta ZIP)
+        const url = isFolder 
+            ? `http://127.0.0.1:8000/api/folder-manager/download-folder/${item.id}`
+            : `http://127.0.0.1:8000/api/folder-manager/download/${item.id}`;
+
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/folder-manager/download/${item.id}`, {
+            // Feedback visual inmediato
+            showAlert('info', 'Procesando Descarga', 'Tu descarga está comenzando, por favor espera un momento...');
+
+            const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
             if (response.ok) {
                 const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
+                const downloadUrl = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = item.name; 
+                a.href = downloadUrl;
+                
+                // Si es carpeta, le ponemos extensión .zip
+                a.download = isFolder ? `${item.name}.zip` : item.name; 
+                
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
-                window.URL.revokeObjectURL(url); 
+                window.URL.revokeObjectURL(downloadUrl); 
                 
-                showAlert('success', 'Descarga Exitosa', 'El archivo se ha guardado en tu equipo.');
+                // Cerramos la alerta de "Procesando"
+                closeAlert();
             } else {
-                showAlert('error', 'Error', 'El archivo físico no se encuentra en la ruta especificada del servidor.');
+                const errorData = await response.json();
+                showAlert('error', 'Error de Descarga', errorData.message || 'El archivo no se encuentra disponible físicamente.');
             }
         } catch (error) {
-            showAlert('error', 'Error', 'Fallo en la conexión de descarga.');
+            showAlert('error', 'Error de Conexión', 'Fallo en la comunicación con el servidor.');
         }
     };
 
@@ -227,7 +246,7 @@ const FolderManager = () => {
                                 <tr>
                                     <th className="ps-4 py-3">Nombre</th>
                                     <th className="py-3">Info</th>
-                                    <th className="py-3">Fecha</th>
+                                    <th className="py-3">Fecha Original</th>
                                     <th className="py-3 text-center">Acciones</th>
                                 </tr>
                             </thead>
@@ -257,7 +276,6 @@ const FolderManager = () => {
                                                 ) : (
                                                     <div className="d-flex flex-column small">
                                                         <span className="text-muted">Duración: {item.duration}</span>
-                                                        {/* Renderizado condicional de metadatos si existen */}
                                                         {(item.meta?.cedula || item.meta?.campana) && (
                                                             <span className="text-info" style={{fontSize: '0.75rem'}}>
                                                                 {item.meta.cedula ? `CC: ${item.meta.cedula} ` : ''}
@@ -270,20 +288,29 @@ const FolderManager = () => {
                                             <td className="small text-muted">{item.date}</td>
                                             <td className="text-center">
                                                 {item.type === 'folder' ? (
-                                                    <button 
-                                                        className={`btn btn-sm btn-outline-secondary ${styles.btnOpen}`} 
-                                                        onClick={() => handleOpenFolder(item)}
-                                                        title="Abrir Carpeta"
-                                                    >
-                                                        <i className="bi bi-folder2-open me-1"></i> Abrir
-                                                    </button>
+                                                    <>
+                                                        <button 
+                                                            className={`btn btn-sm btn-outline-secondary me-2 ${styles.btnOpen}`} 
+                                                            onClick={() => handleOpenFolder(item)}
+                                                            title="Abrir Carpeta"
+                                                        >
+                                                            <i className="bi bi-folder2-open"></i>
+                                                        </button>
+                                                        <button 
+                                                            className={`btn btn-sm btn-outline-primary ${styles.btnDownload}`} 
+                                                            onClick={() => handleDownload(item)}
+                                                            title="Descargar Carpeta ZIP"
+                                                        >
+                                                            <i className="bi bi-file-zip"></i>
+                                                        </button>
+                                                    </>
                                                 ) : (
                                                     <button 
                                                         className={`btn btn-sm btn-outline-success ${styles.btnDownload}`} 
                                                         onClick={() => handleDownload(item)}
                                                         title="Descargar Audio"
                                                     >
-                                                        <i className="bi bi-download me-1"></i>
+                                                        <i className="bi bi-download"></i>
                                                     </button>
                                                 )}
                                             </td>
@@ -295,7 +322,7 @@ const FolderManager = () => {
                                             <i className="bi bi-search display-4 d-block mb-3 opacity-25"></i>
                                             {currentFolderId === 0 
                                                 ? "No hay rutas configuradas en el sistema." 
-                                                : "No se encontraron grabaciones con estos filtros."}
+                                                : "Carpeta vacía o sin resultados."}
                                         </td>
                                     </tr>
                                 )}

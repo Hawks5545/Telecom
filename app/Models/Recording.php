@@ -13,16 +13,20 @@ class Recording extends Model
         'storage_location_id',
         'filename',
         'path',
+        'full_path',
         'size',
         'duration',
         'extension',
         'cedula',
         'telefono',
         'campana',
-        'fecha_grabacion'
+        'fecha_grabacion',
+        'original_created_at',
+        'folder_path'
     ];
 
     protected $casts = [
         'fecha_grabacion' => 'datetime',
+        'original_created_at' => 'datetime',
     ];
 }

@@ -7,42 +7,39 @@ use App\Models\Recording;
 use App\Models\StorageLocation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+// IMPORTANTE: Para capturar el error de duplicados (1062)
+use Illuminate\Database\QueryException; 
 
 class IndexingController extends Controller
 {
-    
     private function normalizePath($inputPath)
     {
         $path = trim($inputPath);
         $path = str_replace(['"', "'"], '', $path);
         $path = str_replace('\\', '/', $path);
 
-        // Si la ruta NO contiene "C:/" o "/" al inicio, asumimos que es relativa a public/
         if (!str_contains($path, ':') && !str_starts_with($path, '/')) {
             return public_path($path);
         }
-
         return $path;
     }
 
     public function scanFolder(Request $request)
     {
         try {
-            // USA EL HELPER PARA ARREGLAR LA RUTA
             $path = $this->normalizePath($request->input('path'));
 
             if (!is_dir($path)) {
-                return response()->json([
-                    'message' => "La carpeta no existe o no es accesible: {$path}"
-                ], 404);
+                return response()->json(['message' => "La carpeta no existe o no es accesible: {$path}"], 404);
             }
 
             $fileCount = 0;
             $totalSize = 0;
 
-            // Escaneo seguro
-            $dirIterator = new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS);
-            $iterator = new \RecursiveIteratorIterator($dirIterator, \RecursiveIteratorIterator::LEAVES_ONLY);
+            $dirIterator = new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS);
+            $iterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::LEAVES_ONLY);
 
             foreach ($iterator as $file) {
                 if ($file->isFile() && in_array(strtolower($file->getExtension()), ['mp3', 'wav', 'ogg', 'aac', 'wma'])) {
@@ -70,34 +67,58 @@ class IndexingController extends Controller
         @set_time_limit(0); 
 
         try {
-            // USAMOS EL HELPER AQUÍ TAMBIÉN
-            $path = $this->normalizePath($request->input('path'));
+            $rootPath = $this->normalizePath($request->input('path'));
             $options = $request->input('options');
 
-            if (!is_dir($path)) {
+            if (!is_dir($rootPath)) {
                 return response()->json(['message' => 'La carpeta no existe.'], 404);
             }
 
-            // Guardamos la ruta absoluta real en la BD para que funcione el download después
-            $location = StorageLocation::firstOrCreate(
-                ['path' => $path],
-                ['name' => 'Importación ' . date('Y-m-d H:i'), 'is_active' => true]
-            );
+            // --- 1. GESTIÓN SEGURA DE LA UBICACIÓN (CARPETA) ---
+            // Intentamos buscarla primero
+            $location = StorageLocation::where('path', $rootPath)->first();
+
+            // Si no existe, intentamos crearla protegiéndonos de condiciones de carrera
+            if (!$location) {
+                try {
+                    $location = StorageLocation::create([
+                        'path' => $rootPath,
+                        'name' => 'Importación ' . date('Y-m-d H:i'),
+                        'is_active' => true
+                    ]);
+                } catch (QueryException $e) {
+                    // Si da error de duplicado (1062), significa que ya existe (alguien más la creó o estaba oculta)
+                    if ($e->errorInfo[1] == 1062) {
+                        $location = StorageLocation::where('path', $rootPath)->first();
+                    } else {
+                        throw $e; // Si es otro error, lo lanzamos
+                    }
+                }
+            }
 
             $processedCount = 0;
             $skippedCount = 0;
 
-            $dirIterator = new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS);
-            $iterator = new \RecursiveIteratorIterator($dirIterator, \RecursiveIteratorIterator::LEAVES_ONLY);
+            $dirIterator = new RecursiveDirectoryIterator($rootPath, RecursiveDirectoryIterator::SKIP_DOTS);
+            $iterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::LEAVES_ONLY);
 
             foreach ($iterator as $file) {
                 if ($file->isFile() && in_array(strtolower($file->getExtension()), ['mp3', 'wav', 'ogg', 'aac', 'wma'])) {
                     
                     $filename = $file->getFilename();
-                    $filePath = str_replace('\\', '/', $file->getPathname());
+                    $fullPath = str_replace('\\', '/', $file->getPathname());
 
+                    // Calcular ruta relativa para ZIP
+                    $parentDir = str_replace('\\', '/', $file->getPath());
+                    $relativePath = str_replace(str_replace('\\', '/', $rootPath), '', $parentDir);
+                    $relativePath = trim($relativePath, '/');
+
+                    $fileTimestamp = $file->getMTime(); 
+                    $originalDate = Carbon::createFromTimestamp($fileTimestamp);
+
+                    // Filtro rápido por PHP (Opcional, ahorra consultas)
                     if ($options['skipDuplicates'] ?? true) {
-                        if (Recording::where('path', $filePath)->exists()) {
+                        if (Recording::where('full_path', $fullPath)->exists()) {
                             $skippedCount++;
                             continue;
                         }
@@ -105,50 +126,76 @@ class IndexingController extends Controller
 
                     $meta = $this->extractMetadata($filename);
 
-                    Recording::create([
-                        'storage_location_id' => $location->id,
-                        'filename' => $filename,
-                        'path' => $filePath,
-                        'size' => $file->getSize(),
-                        'extension' => $file->getExtension(),
-                        'cedula' => $meta['cedula'],
-                        'telefono' => $meta['telefono'],
-                        'campana' => $meta['campana'],
-                        'fecha_grabacion' => $meta['fecha'] ?? Carbon::now(),
-                        'duration' => 0
-                    ]);
+                    // --- 2. INSERCIÓN SEGURA DEL ARCHIVO ---
+                    try {
+                        Recording::create([
+                            'storage_location_id' => $location->id,
+                            'filename' => $filename,
+                            'path' => $fullPath, 
+                            'full_path' => $fullPath,
+                            'folder_path' => $relativePath,
+                            'size' => $file->getSize(),
+                            'extension' => $file->getExtension(),
+                            'cedula' => $meta['cedula'],
+                            'telefono' => $meta['telefono'],
+                            'campana' => $meta['campana'],
+                            'fecha_grabacion' => $meta['fecha'] ?? $originalDate,
+                            'original_created_at' => $originalDate,
+                            'duration' => 0
+                        ]);
+                        $processedCount++;
 
-                    $processedCount++;
+                    } catch (QueryException $e) {
+                        // Si es duplicado (Error 1062), lo contamos como omitido y seguimos
+                        if ($e->errorInfo[1] == 1062) {
+                            $skippedCount++;
+                        } else {
+                            // Error real (ej: dato muy largo), lo logueamos pero intentamos seguir
+                            Log::warning("Error insertando $filename: " . $e->getMessage());
+                        }
+                    }
                 }
+            }
+
+            // --- 3. RESPUESTA INTELIGENTE PARA EL FRONTEND ---
+            $statusType = 'success';
+            $titleMsg = 'Indexación Exitosa';
+            $message = "Se indexaron {$processedCount} archivos nuevos correctamente.";
+
+            if ($processedCount === 0 && $skippedCount > 0) {
+                // CASO: Todo repetido -> Alerta Amarilla
+                $statusType = 'warning';
+                $titleMsg = 'Sin Cambios';
+                $message = "La carpeta ya estaba indexada. No se encontraron archivos nuevos.";
+            } elseif ($processedCount > 0 && $skippedCount > 0) {
+                // CASO: Mezclado -> Alerta Azul/Info
+                $statusType = 'info';
+                $titleMsg = 'Indexación Parcial';
+                $message = "Se agregaron {$processedCount} archivos nuevos. {$skippedCount} ya existían y se omitieron.";
             }
 
             return response()->json([
                 'indexed' => $processedCount,
                 'skipped' => $skippedCount,
-                'total_in_db' => Recording::count()
+                'total_in_db' => Recording::count(),
+                'status_type' => $statusType, // 'success', 'warning', 'info'
+                'title_msg' => $titleMsg,
+                'message' => $message
             ]);
 
         } catch (\Throwable $e) {
             Log::error("Error Indexing: " . $e->getMessage());
-            return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Error crítico: ' . $e->getMessage()], 500);
         }
     }
 
     private function extractMetadata($filename)
     {
-        $data = [
-            'cedula' => null,
-            'telefono' => null,
-            'campana' => null,
-            'fecha' => null
-        ];
-
-        // 1. Limpieza
+        $data = ['cedula' => null, 'telefono' => null, 'campana' => null, 'fecha' => null];
         $cleanName = preg_replace('/(\d+)([a-zA-Z]+)/', '$1 $2', $filename);
         $cleanName = preg_replace('/([a-zA-Z]+)(\d+)/', '$1 $2', $cleanName);
         $cleanName = str_replace(['_', '-', '.'], ' ', $cleanName);
 
-        // 2. Buscar Campaña
         $keywords = ['Ventas', 'Soporte', 'Cobranzas', 'Claro', 'Movistar', 'ETB', 'WOM', 'Tigo', 'Retencion'];
         foreach ($keywords as $key) {
             if (stripos($cleanName, $key) !== false) {
@@ -157,36 +204,21 @@ class IndexingController extends Controller
             }
         }
 
-        // 3. Analizar Números
         preg_match_all('/\d+/', $cleanName, $matches);
         $numerosEncontrados = $matches[0] ?? [];
 
         foreach ($numerosEncontrados as $num) {
             $len = strlen($num);
-
-            // Fecha
             if (($len == 8) && str_starts_with($num, '202')) { 
-                try {
-                    $data['fecha'] = Carbon::createFromFormat('Ymd', $num);
-                    continue;
-                } catch (\Exception $e) {}
+                try { $data['fecha'] = Carbon::createFromFormat('Ymd', $num); continue; } catch (\Exception $e) {}
             }
-
-            // Celular
-            if ($len == 10 && str_starts_with($num, '3')) {
-                if (!$data['telefono']) {
-                    $data['telefono'] = $num;
-                    continue; 
-                }
+            if ($len == 10 && str_starts_with($num, '3') && !$data['telefono']) {
+                $data['telefono'] = $num; continue; 
             }
-
-            // Cédula
-            if ($len >= 7 && $len <= 10) {
-                if ($len == 10 && str_starts_with($num, '3')) continue; 
-                if (!$data['cedula']) $data['cedula'] = $num;
+            if ($len >= 7 && $len <= 10 && !($len == 10 && str_starts_with($num, '3')) && !$data['cedula']) {
+                $data['cedula'] = $num;
             }
         }
-
         return $data;
     }
 }
