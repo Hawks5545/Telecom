@@ -34,6 +34,16 @@ const FolderManager = () => {
         setAlertConfig({ ...alertConfig, isOpen: false });
     };
 
+    // --- UTILIDAD: FORMATEAR BYTES A MB/GB ---
+    const formatBytes = (bytes, decimals = 2) => {
+        if (!+bytes) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    };
+
     // --- 1. CARGA DE DATOS REALES (CONEXIÓN API) ---
     const fetchItems = useCallback(async () => {
         setIsLoading(true);
@@ -64,7 +74,6 @@ const FolderManager = () => {
         }
     }, [currentFolderId, searchTerm, dateFrom, dateTo]);
 
-    // Efecto para recargar cuando cambian los filtros o la carpeta
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchItems();
@@ -87,15 +96,16 @@ const FolderManager = () => {
         setSearchTerm('');
     };
 
-    // --- 3. LÓGICA DE DESCARGA UNIFICADA (ARCHIVO Y CARPETA) ---
+    // --- 3. LÓGICA DE DESCARGA CON PESO ---
     const handleDownload = (item) => {
         const isFolder = item.type === 'folder';
+        const sizeInfo = item.size_bytes ? formatBytes(item.size_bytes) : 'Desconocido';
         
-        // Mensaje personalizado según el tipo
         const title = isFolder ? 'Descargar Carpeta ZIP' : 'Descargar Archivo';
+        // Mensaje dinámico incluyendo el peso
         const msg = isFolder 
-            ? `¿Deseas comprimir y descargar todo el contenido de "${item.name}"? Esto puede tardar unos segundos.` 
-            : `¿Deseas descargar el archivo "${item.name}"?`;
+            ? `Vas a descargar el contenido de "${item.name}".\n\nPeso total estimado: ${sizeInfo}.\n\nEl servidor comprimirá los archivos en un ZIP. ¿Deseas continuar?` 
+            : `¿Deseas descargar el archivo "${item.name}"?\nPeso: ${sizeInfo}`;
 
         showAlert(
             'info',
@@ -109,14 +119,17 @@ const FolderManager = () => {
         const token = localStorage.getItem('auth_token');
         const isFolder = item.type === 'folder';
 
-        // Determinar la URL correcta (Archivo vs Carpeta ZIP)
         const url = isFolder 
             ? `http://127.0.0.1:8000/api/folder-manager/download-folder/${item.id}`
             : `http://127.0.0.1:8000/api/folder-manager/download/${item.id}`;
 
         try {
-            // Feedback visual inmediato
-            showAlert('info', 'Procesando Descarga', 'Tu descarga está comenzando, por favor espera un momento...');
+            // Mensaje de carga diferente si es carpeta (porque tarda más comprimiendo)
+            const loadingMsg = isFolder 
+                ? 'Comprimiendo carpeta... esto puede tardar según el tamaño.' 
+                : 'Iniciando descarga...';
+
+            showAlert('loading', 'Procesando', loadingMsg);
 
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -128,7 +141,6 @@ const FolderManager = () => {
                 const a = document.createElement('a');
                 a.href = downloadUrl;
                 
-                // Si es carpeta, le ponemos extensión .zip
                 a.download = isFolder ? `${item.name}.zip` : item.name; 
                 
                 document.body.appendChild(a);
@@ -136,7 +148,6 @@ const FolderManager = () => {
                 a.remove();
                 window.URL.revokeObjectURL(downloadUrl); 
                 
-                // Cerramos la alerta de "Procesando"
                 closeAlert();
             } else {
                 const errorData = await response.json();
@@ -151,7 +162,6 @@ const FolderManager = () => {
     return (
         <div className={`container-fluid p-0 ${styles.fadeIn}`}>
             
-            {/* ALERTA GLOBAL */}
             <CustomAlert 
                 isOpen={alertConfig.isOpen}
                 type={alertConfig.type}
@@ -220,7 +230,7 @@ const FolderManager = () => {
                 </div>
             </div>
 
-            {/* BREADCRUMBS (MIGAS DE PAN) */}
+            {/* BREADCRUMBS */}
             <div className={styles.breadcrumbBar}>
                 <i className="bi bi-hdd-network text-secondary fs-5"></i>
                 <div className={styles.separator}>|</div>
@@ -245,7 +255,7 @@ const FolderManager = () => {
                             <thead className={styles.tableHeader}>
                                 <tr>
                                     <th className="ps-4 py-3">Nombre</th>
-                                    <th className="py-3">Info</th>
+                                    <th className="py-3">Info / Peso</th>
                                     <th className="py-3">Fecha Original</th>
                                     <th className="py-3 text-center">Acciones</th>
                                 </tr>
@@ -272,10 +282,14 @@ const FolderManager = () => {
                                             </td>
                                             <td>
                                                 {item.type === 'folder' ? (
-                                                    <span className="badge bg-light text-dark border">{item.items} archivos</span>
+                                                    <div className="d-flex flex-column small">
+                                                        <span className="badge bg-light text-dark border w-auto align-self-start mb-1">{item.items} archivos</span>
+                                                        <span className="text-muted fw-bold">Peso: {formatBytes(item.size_bytes)}</span>
+                                                    </div>
                                                 ) : (
                                                     <div className="d-flex flex-column small">
                                                         <span className="text-muted">Duración: {item.duration}</span>
+                                                        <span className="text-muted">Peso: {formatBytes(item.size_bytes)}</span>
                                                         {(item.meta?.cedula || item.meta?.campana) && (
                                                             <span className="text-info" style={{fontSize: '0.75rem'}}>
                                                                 {item.meta.cedula ? `CC: ${item.meta.cedula} ` : ''}

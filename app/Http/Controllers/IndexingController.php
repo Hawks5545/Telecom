@@ -75,10 +75,8 @@ class IndexingController extends Controller
             }
 
             // --- 1. GESTIÓN SEGURA DE LA UBICACIÓN (CARPETA) ---
-            // Intentamos buscarla primero
             $location = StorageLocation::where('path', $rootPath)->first();
 
-            // Si no existe, intentamos crearla protegiéndonos de condiciones de carrera
             if (!$location) {
                 try {
                     $location = StorageLocation::create([
@@ -87,11 +85,10 @@ class IndexingController extends Controller
                         'is_active' => true
                     ]);
                 } catch (QueryException $e) {
-                    // Si da error de duplicado (1062), significa que ya existe (alguien más la creó o estaba oculta)
                     if ($e->errorInfo[1] == 1062) {
                         $location = StorageLocation::where('path', $rootPath)->first();
                     } else {
-                        throw $e; // Si es otro error, lo lanzamos
+                        throw $e;
                     }
                 }
             }
@@ -108,7 +105,6 @@ class IndexingController extends Controller
                     $filename = $file->getFilename();
                     $fullPath = str_replace('\\', '/', $file->getPathname());
 
-                    // Calcular ruta relativa para ZIP
                     $parentDir = str_replace('\\', '/', $file->getPath());
                     $relativePath = str_replace(str_replace('\\', '/', $rootPath), '', $parentDir);
                     $relativePath = trim($relativePath, '/');
@@ -116,7 +112,7 @@ class IndexingController extends Controller
                     $fileTimestamp = $file->getMTime(); 
                     $originalDate = Carbon::createFromTimestamp($fileTimestamp);
 
-                    // Filtro rápido por PHP (Opcional, ahorra consultas)
+                    // Filtro rápido por PHP
                     if ($options['skipDuplicates'] ?? true) {
                         if (Recording::where('full_path', $fullPath)->exists()) {
                             $skippedCount++;
@@ -146,39 +142,35 @@ class IndexingController extends Controller
                         $processedCount++;
 
                     } catch (QueryException $e) {
-                        // Si es duplicado (Error 1062), lo contamos como omitido y seguimos
                         if ($e->errorInfo[1] == 1062) {
                             $skippedCount++;
                         } else {
-                            // Error real (ej: dato muy largo), lo logueamos pero intentamos seguir
                             Log::warning("Error insertando $filename: " . $e->getMessage());
                         }
                     }
                 }
             }
 
-            // --- 3. RESPUESTA INTELIGENTE PARA EL FRONTEND ---
+            // --- 3. RESPUESTA INTELIGENTE ---
             $statusType = 'success';
             $titleMsg = 'Indexación Exitosa';
             $message = "Se indexaron {$processedCount} archivos nuevos correctamente.";
 
             if ($processedCount === 0 && $skippedCount > 0) {
-                // CASO: Todo repetido -> Alerta Amarilla
                 $statusType = 'warning';
                 $titleMsg = 'Sin Cambios';
                 $message = "La carpeta ya estaba indexada. No se encontraron archivos nuevos.";
             } elseif ($processedCount > 0 && $skippedCount > 0) {
-                // CASO: Mezclado -> Alerta Azul/Info
                 $statusType = 'info';
                 $titleMsg = 'Indexación Parcial';
-                $message = "Se agregaron {$processedCount} archivos nuevos. {$skippedCount} ya existían y se omitieron.";
+                $message = "Se agregaron {$processedCount} archivos nuevos y se omitieron {$skippedCount} duplicados.";
             }
 
             return response()->json([
                 'indexed' => $processedCount,
                 'skipped' => $skippedCount,
                 'total_in_db' => Recording::count(),
-                'status_type' => $statusType, // 'success', 'warning', 'info'
+                'status_type' => $statusType,
                 'title_msg' => $titleMsg,
                 'message' => $message
             ]);
@@ -192,6 +184,7 @@ class IndexingController extends Controller
     private function extractMetadata($filename)
     {
         $data = ['cedula' => null, 'telefono' => null, 'campana' => null, 'fecha' => null];
+        
         $cleanName = preg_replace('/(\d+)([a-zA-Z]+)/', '$1 $2', $filename);
         $cleanName = preg_replace('/([a-zA-Z]+)(\d+)/', '$1 $2', $cleanName);
         $cleanName = str_replace(['_', '-', '.'], ' ', $cleanName);
@@ -209,14 +202,30 @@ class IndexingController extends Controller
 
         foreach ($numerosEncontrados as $num) {
             $len = strlen($num);
+
+            // A. FECHA (Prioridad: Ymd, empieza con 202)
             if (($len == 8) && str_starts_with($num, '202')) { 
                 try { $data['fecha'] = Carbon::createFromFormat('Ymd', $num); continue; } catch (\Exception $e) {}
             }
-            if ($len == 10 && str_starts_with($num, '3') && !$data['telefono']) {
-                $data['telefono'] = $num; continue; 
+
+            // B. CELULAR (Prioridad: 10 dígitos y empieza por 3)
+            if ($len == 10 && str_starts_with($num, '3')) {
+                if (!$data['telefono']) {
+                    $data['telefono'] = $num;
+                    continue; // ¡IMPORTANTE! Si es celular, saltamos al siguiente ciclo para no evaluarlo como cédula
+                }
             }
-            if ($len >= 7 && $len <= 10 && !($len == 10 && str_starts_with($num, '3')) && !$data['cedula']) {
-                $data['cedula'] = $num;
+
+            // C. CÉDULA (7 a 10 dígitos)
+            if ($len >= 7 && $len <= 10) {
+                // Si parece celular (10 dig y empieza por 3) pero llegamos aquí, lo ignoramos para cédula
+                if ($len == 10 && str_starts_with($num, '3')) {
+                    continue; 
+                }
+                
+                if (!$data['cedula']) {
+                    $data['cedula'] = $num;
+                }
             }
         }
         return $data;

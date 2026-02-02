@@ -29,4 +29,9 @@ class Recording extends Model
         'fecha_grabacion' => 'datetime',
         'original_created_at' => 'datetime',
     ];
+
+    public function storageLocation()
+    {
+        return $this->belongsTo(StorageLocation::class, 'storage_location_id');
+    }
 }

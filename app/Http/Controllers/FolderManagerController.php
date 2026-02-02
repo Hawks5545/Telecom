@@ -7,7 +7,6 @@ use App\Models\Recording;
 use App\Models\StorageLocation;  
 use ZipArchive;                  
 use Illuminate\Support\Facades\Log;
-// Importamos File para manejar rutas y limpieza
 use Illuminate\Support\Facades\File;
 
 class FolderManagerController extends Controller
@@ -24,12 +23,16 @@ class FolderManagerController extends Controller
             $locations = StorageLocation::where('is_active', true)->get();
             
             return response()->json($locations->map(function($loc) {
+                // [NUEVO] Calculamos el peso total de la carpeta sumando el size de sus archivos
+                $totalSizeBytes = Recording::where('storage_location_id', $loc->id)->sum('size');
+
                 return [
                     'id' => $loc->id,
                     'parentId' => 0,
                     'name' => $loc->name ?? $loc->path,
                     'type' => 'folder',
                     'items' => Recording::where('storage_location_id', $loc->id)->count(),
+                    'size_bytes' => $totalSizeBytes, // <--- Enviamos el peso total al frontend
                     'date' => $loc->created_at->format('Y-m-d'),
                     'path' => $loc->path
                 ];
@@ -67,6 +70,7 @@ class FolderManagerController extends Controller
                 'name' => $file->filename,
                 'type' => 'file',
                 'items' => 0,
+                'size_bytes' => $file->size, // <--- Enviamos el peso del archivo individual
                 'date' => $displayDate,
                 'duration' => gmdate("H:i:s", $file->duration ?? 0),
                 'meta' => [ 

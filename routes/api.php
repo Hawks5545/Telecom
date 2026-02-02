@@ -8,6 +8,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\IndexingController; 
 use App\Http\Controllers\FolderManagerController;
 use App\Http\Controllers\ConfigurationController;
+use App\Http\Controllers\SearchController;
 
 // --- RUTAS PÚBLICAS ---
 Route::post('/login', [AuthController::class, 'login']);
@@ -23,6 +24,11 @@ Route::middleware('auth:sanctum')->group(function () {
     //Indexacion
     Route::post('/indexing/scan', [\App\Http\Controllers\IndexingController::class, 'scanFolder']);
     Route::post('/indexing/run', [\App\Http\Controllers\IndexingController::class, 'runIndexing']);
+
+    // --- Módulo de Búsqueda Avanzada ---
+Route::get('/search/folders', [SearchController::class, 'getFolders']); 
+Route::get('/search/results', [SearchController::class, 'search']); 
+Route::post('/search/download-zip', [SearchController::class, 'downloadZip']); 
 
     //Gestor de carpetas
     Route::get('/folder-manager/items', [App\Http\Controllers\FolderManagerController::class, 'getItems']);
