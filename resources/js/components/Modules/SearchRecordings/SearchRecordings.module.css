@@ -1,5 +1,3 @@
-/* resources/js/components/Modules/SearchRecordings/SearchRecordings.module.css */
-
 /* --- ANIMACIONES --- */
 .fadeIn { 
     animation: fadeIn 0.5s ease-out; 
@@ -10,136 +8,140 @@
     to { opacity: 1; transform: translateY(0); } 
 }
 
+/* --- ESTRUCTURA DE PANTALLA COMPLETA SIN SCROLL GLOBAL --- */
+.fullHeightContainer {
+    height: calc(100vh - 100px); /* Ajusta según el alto de tu navbar/header global */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Evita scroll en el cuerpo principal */
+}
+
 /* --- TEXTOS Y TÍTULOS --- */
 .pageTitle { 
     color: #005461; 
     font-weight: 700; 
     margin: 0; 
+    font-size: 1.5rem;
 }
 
 .label { 
     font-weight: 600; 
     color: #6c757d; 
-    font-size: 0.85rem; 
-    margin-bottom: 0.5rem; 
+    font-size: 0.8rem; 
+    margin-bottom: 0.3rem; 
     display: block;
 }
 
-/* --- CARDS Y ESTRUCTURA --- */
+/* --- CARDS --- */
 .cardCustom {
     border: none;
-    border-radius: 15px;
+    border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    margin-bottom: 1.5rem;
-    overflow: hidden;
     background-color: white;
+    /* Para que flex-grow funcione en el contenedor padre */
+    display: flex;
+    flex-direction: column;
 }
 
 .cardHeader {
     background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
     color: white;
     font-weight: 600;
-    padding: 1rem 1.5rem;
+    padding: 0.8rem 1.2rem;
+    border-radius: 12px 12px 0 0;
 }
 
-/* --- BOTONES Y ACCIONES --- */
+/* --- BOTONES --- */
 .btnSearch {
     background-color: #3BC1A8;
     color: white;
     border: none;
     font-weight: 600;
-    padding: 0.5rem 2rem;
-    border-radius: 8px;
+    border-radius: 6px;
     transition: all 0.3s;
 }
 
 .btnSearch:hover { 
     background-color: #32a892; 
-    transform: translateY(-2px); 
+    transform: translateY(-1px); 
 }
 
 .btnDownloadMassive {
     background-color: #3BC1A8;
     color: white;
     font-weight: 600;
-    border-radius: 8px;
-    padding: 0.5rem 1.2rem;
-    transition: all 0.3s;
+    border-radius: 6px;
+    padding: 0.4rem 1rem;
     border: none;
+    font-size: 0.9rem;
 }
 
 .btnDownloadMassive:hover {
     background-color: #32a892;
-    transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(59, 193, 168, 0.3);
 }
 
-/* --- TABLA Y SCROLL INTERNO --- */
+/* --- TABLA CON SCROLL INTERNO (LA MAGIA) --- */
+.cardTable {
+    overflow: hidden; /* Importante para contener el scroll */
+    margin-bottom: 0 !important; /* Quitar margen inferior para ajustar */
+}
+
 .tableContainer { 
-    border-radius: 15px; 
+    flex: 1; /* Ocupa el espacio restante */
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .tableWrapper {
-    max-height: 60vh;
-    overflow-y: auto;
-    position: relative;
+    flex: 1;
+    overflow-y: auto; /* Scroll vertical solo aquí */
+    overflow-x: auto; /* Scroll horizontal si es necesario */
 }
 
-.tableWrapper::-webkit-scrollbar { 
-    width: 6px; 
-}
-
-.tableWrapper::-webkit-scrollbar-track { 
-    background: #f8f9fa; 
-}
-
-.tableWrapper::-webkit-scrollbar-thumb { 
-    background: #ccc; 
-    border-radius: 10px; 
-}
+/* Estilizando la barra de scroll */
+.tableWrapper::-webkit-scrollbar { width: 8px; height: 8px; }
+.tableWrapper::-webkit-scrollbar-track { background: #f1f1f1; }
+.tableWrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+.tableWrapper::-webkit-scrollbar-thumb:hover { background: #bbb; }
 
 .tableHeader th {
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 100; /* Asegura que quede por encima del contenido */
     background-color: #005461 !important;
     color: white;
     font-weight: 600;
     border: none;
     white-space: nowrap;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1); /* Sombra sutil al hacer scroll */
 }
 
-/* --- ELEMENTOS DE FORMULARIO EN TABLA --- */
+/* --- CHECKBOX Y PAGINACIÓN --- */
 .checkbox {
     cursor: pointer;
     border: 2px solid #dee2e6;
 }
-
 .checkbox:checked {
     background-color: #3BC1A8;
     border-color: #3BC1A8;
 }
 
-/* --- PAGINACIÓN --- */
 .paginationBtn {
     border: none;
     background: transparent;
     color: #005461;
     border-radius: 5px;
-    min-width: 32px;
-    height: 32px;
+    min-width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
 }
-
-.paginationBtn:hover { 
-    background-color: #eef2f3; 
-}
-
-.paginationBtnActive { 
-    background-color: #3BC1A8 !important; 
-    color: white !important; 
-}
+.paginationBtn:hover { background-color: #eef2f3; }

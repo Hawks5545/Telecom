@@ -5,48 +5,57 @@ import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 const Configuration = () => {
     
     // --- ESTADOS ---
-    const [activeSection, setActiveSection] = useState('storage');
+    // Agregamos 'routes' como nueva sección y la ponemos por defecto si quieres
+    const [activeSection, setActiveSection] = useState('routes'); 
     
     // Estados para Rutas (Storage Locations)
     const [locations, setLocations] = useState([]); 
     const [newLocation, setNewLocation] = useState({ path: '', name: '' });
     const [isLoadingPath, setIsLoadingPath] = useState(false);
+    const [locationSearch, setLocationSearch] = useState(''); 
 
-    // Estados para Preferencias Globales (Settings)
-    // AHORA INCLUYE: Almacenamiento, Sincronización y Alertas
+    // Estados para Preferencias Globales
     const [settings, setSettings] = useState({
-        // Almacenamiento
         download_format: 'mp3',
-        // Sincronización
         hide_broken_links: '1', 
         scan_frequency: '30',
-        // Alertas (NUEVO)
         admin_email: '',
-        alert_disk_full: '1',    // '1' = Activado
-        alert_service_down: '1'  // '1' = Activado
+        alert_disk_full: '1',
+        alert_service_down: '1'
     });
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
     const [alertConfig, setAlertConfig] = useState({
-        isOpen: false,
-        type: 'success',
-        title: '',
-        message: ''
+        isOpen: false, type: 'success', title: '', message: ''
     });
 
     // --- CARGAR DATOS AL INICIAR ---
     useEffect(() => {
-        fetchSettings(); // Cargar configuración global siempre
-        if (activeSection === 'storage') {
+        fetchSettings(); 
+        // Solo cargamos rutas si estamos en esa sección para optimizar
+        if (activeSection === 'routes') {
             fetchLocations();
         }
     }, [activeSection]);
 
+    // Efecto para buscar en tiempo real
+    useEffect(() => {
+        if (activeSection === 'routes') {
+            const timer = setTimeout(() => {
+                fetchLocations();
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [locationSearch]);
+
     // 1. Obtener Rutas
     const fetchLocations = async () => {
         const token = localStorage.getItem('auth_token');
+        const params = new URLSearchParams();
+        if (locationSearch) params.append('search', locationSearch);
+
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/config/storage', {
+            const response = await fetch(`http://127.0.0.1:8000/api/config/storage?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -55,7 +64,7 @@ const Configuration = () => {
         } catch (error) { console.error("Error cargando rutas:", error); }
     };
 
-    // 2. Obtener Ajustes Globales (Settings)
+    // 2. Obtener Ajustes
     const fetchSettings = async () => {
         const token = localStorage.getItem('auth_token');
         try {
@@ -64,13 +73,12 @@ const Configuration = () => {
             });
             if (response.ok) {
                 const data = await response.json();
-                // Actualizamos estado mezclando defaults con datos de BD
                 setSettings(prev => ({ ...prev, ...data }));
             }
         } catch (error) { console.error("Error cargando ajustes:", error); }
     };
 
-    // --- MANEJADORES DE ACCIONES (RUTAS) ---
+    // --- ACCIONES ---
     const handleAddLocation = async () => {
         if (!newLocation.path) return showAlert('Campo Requerido', 'Por favor ingresa la ruta del servidor.', 'error');
         setIsLoadingPath(true);
@@ -85,7 +93,7 @@ const Configuration = () => {
             if (response.ok) {
                 showAlert('Ruta Agregada', 'La nueva ubicación se ha guardado correctamente.');
                 setNewLocation({ path: '', name: '' });
-                fetchLocations();
+                fetchLocations(); 
             } else {
                 showAlert('Error', data.message || 'No se pudo guardar la ruta.', 'error');
             }
@@ -108,7 +116,6 @@ const Configuration = () => {
         } catch (error) { console.error(error); }
     };
 
-    // --- MANEJADORES DE ACCIONES (PREFERENCIAS GLOBALES - REUTILIZABLE) ---
     const handleSaveSettings = async () => {
         setIsSavingSettings(true);
         const token = localStorage.getItem('auth_token');
@@ -127,20 +134,19 @@ const Configuration = () => {
         finally { setIsSavingSettings(false); }
     };
 
-    // --- ALERTAS ---
     const showAlert = (title, message, type = 'success') => {
         setAlertConfig({ isOpen: true, type, title, message });
     };
     const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
-    // --- RENDERIZADO: SECCIÓN ALMACENAMIENTO ---
-    const renderStorageConfig = () => (
+    // --- NUEVA SECCIÓN: GESTIÓN DE RUTAS ---
+    const renderRoutesConfig = () => (
         <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4 className={styles.sectionSubtitle}>Gestión de Archivos</h4>
+                <h4 className={styles.sectionSubtitle}>Rutas de Importación</h4>
             </div>
             
-            {/* 1. FORMULARIO RUTAS */}
+            {/* Formulario */}
             <div className="card p-4 mb-4 border-0 shadow-sm bg-light">
                 <h6 className="fw-bold text-dark mb-3"><i className="bi bi-folder-plus me-2"></i>Agregar Nueva Ubicación</h6>
                 <div className="row g-2 align-items-end">
@@ -162,39 +168,67 @@ const Configuration = () => {
                 </div>
             </div>
 
-            {/* 2. TABLA RUTAS */}
+            {/* Tabla con Buscador */}
             <div className="card border-0 shadow-sm mb-4">
+                <div className="card-header bg-white py-3">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '400px' }}>
+                        <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
+                        <input 
+                            type="text" 
+                            className="form-control border-start-0 ps-0" 
+                            placeholder="Buscar por nombre, ruta o fecha..." 
+                            value={locationSearch}
+                            onChange={(e) => setLocationSearch(e.target.value)}
+                        />
+                    </div>
+                </div>
+
                 <div className="card-body p-0">
-                    <table className="table table-hover mb-0 align-middle">
-                        <thead className="bg-light">
-                            <tr><th className="ps-4 py-3">Nombre</th><th>Ruta</th><th>Estado</th><th className="text-end pe-4">Acciones</th></tr>
-                        </thead>
-                        <tbody>
-                            {locations.length === 0 ? (
-                                <tr><td colSpan="4" className="text-center py-4 text-muted">No hay rutas configuradas.</td></tr>
-                            ) : locations.map(loc => (
-                                <tr key={loc.id}>
-                                    <td className="ps-4 fw-bold">{loc.name}</td>
-                                    <td className="text-muted small font-monospace">{loc.path}</td>
-                                    <td><span className={`badge ${loc.is_active ? 'bg-success' : 'bg-secondary'}`}>{loc.is_active ? 'Activo' : 'Inactivo'}</span></td>
-                                    <td className="text-end pe-4">
-                                        <button className="btn btn-sm btn-outline-danger border-0" onClick={() => handleDeleteLocation(loc.id)}><i className="bi bi-trash"></i></button>
-                                    </td>
+                    <div className="table-responsive">
+                        <table className="table table-hover mb-0 align-middle">
+                            <thead className="bg-light">
+                                <tr>
+                                    <th className="ps-4 py-3">Nombre</th>
+                                    <th>Ruta</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Estado</th>
+                                    <th className="text-end pe-4">Acciones</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {locations.length === 0 ? (
+                                    <tr><td colSpan="5" className="text-center py-4 text-muted">No se encontraron rutas.</td></tr>
+                                ) : locations.map(loc => (
+                                    <tr key={loc.id}>
+                                        <td className="ps-4 fw-bold">{loc.name}</td>
+                                        <td className="text-muted small font-monospace">{loc.path}</td>
+                                        <td className="small text-secondary">{new Date(loc.created_at).toLocaleString()}</td>
+                                        <td><span className={`badge ${loc.is_active ? 'bg-success' : 'bg-secondary'}`}>{loc.is_active ? 'Activo' : 'Inactivo'}</span></td>
+                                        <td className="text-end pe-4">
+                                            <button className="btn btn-sm btn-outline-danger border-0" onClick={() => handleDeleteLocation(loc.id)}><i className="bi bi-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+        </div>
+    );
 
-            {/* 3. PREFERENCIAS GLOBALES (Descarga) */}
+    // --- SECCIÓN: ALMACENAMIENTO (SOLO PREFERENCIAS) ---
+    const renderStorageConfig = () => (
+        <div className={styles.sectionContainer}>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <h4 className={styles.sectionSubtitle}>Preferencias de Almacenamiento</h4>
+                <button className={styles.btnSave} onClick={handleSaveSettings} disabled={isSavingSettings}>
+                    {isSavingSettings ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+            </div>
+            
             <div className="card p-4 border-0 shadow-sm bg-light">
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h6 className="fw-bold text-dark m-0"><i className="bi bi-sliders me-2"></i>Preferencias Globales</h6>
-                    <button className="btn btn-sm btn-primary" onClick={handleSaveSettings} disabled={isSavingSettings}>
-                        {isSavingSettings ? 'Guardando...' : 'Guardar Preferencias'}
-                    </button>
-                </div>
+                <h6 className="fw-bold text-dark mb-3">Configuración de Descargas</h6>
                 <div className="row">
                     <div className="col-md-6 mb-3">
                         <label className="form-label small fw-bold text-secondary">Formato de Descarga</label>
@@ -204,19 +238,20 @@ const Configuration = () => {
                             <option value="mp3">MP3 (Optimizado / Ligero)</option>
                             <option value="wav">WAV (Alta Calidad)</option>
                         </select>
+                        <div className="form-text">Define en qué formato se descargarán los audios individuales.</div>
                     </div>
                 </div>
             </div>
         </div>
     );
 
-    // --- SECCIÓN 2: SINCRONIZACIÓN ---
+    // --- SECCIÓN: SINCRONIZACIÓN ---
     const renderSyncConfig = () => (
         <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4 className={styles.sectionSubtitle}>Integridad de Datos</h4>
                 <button className={styles.btnSave} onClick={handleSaveSettings} disabled={isSavingSettings}>
-                    {isSavingSettings ? <>Wait...</> : <><i className="bi bi-check-circle me-2"></i>Guardar Cambios</>}
+                    {isSavingSettings ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
             </div>
             <div className="alert alert-info border-0 shadow-sm d-flex align-items-center">
@@ -226,7 +261,6 @@ const Configuration = () => {
                 </div>
             </div>
             <div className="card p-4 border-0 shadow-sm bg-light mt-3">
-                <h6 className="fw-bold text-dark mb-3">Limpieza de Base de Datos</h6>
                 <div className="d-flex justify-content-between align-items-center mb-4">
                     <div>
                         <p className="mb-1 fw-bold text-secondary">Ocultar enlaces rotos</p>
@@ -257,36 +291,23 @@ const Configuration = () => {
         </div>
     );
 
-    // --- SECCIÓN 3: ALERTAS (DINÁMICO Y FUNCIONAL) ---
+    // --- SECCIÓN: ALERTAS ---
     const renderNotificationsConfig = () => (
         <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4 className={styles.sectionSubtitle}>Configuración de Alertas</h4>
-                
                 <button className={styles.btnSave} onClick={handleSaveSettings} disabled={isSavingSettings}>
-                    {isSavingSettings ? (
-                        <> <span className="spinner-border spinner-border-sm me-1"></span> Guardando... </>
-                    ) : (
-                        <> <i className="bi bi-bell-fill me-2"></i>Guardar Configuración </>
-                    )}
+                    {isSavingSettings ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
             </div>
             
             <div className="card p-4 mb-4 border-0 shadow-sm bg-light">
-                <h6 className="fw-bold text-dark mb-3">
-                    <i className="bi bi-envelope-at me-2"></i>Destinatarios
-                </h6>
-                <p className="small text-muted mb-3">
-                    Los correos técnicos del sistema (fallos de disco, errores de servicio) se enviarán aquí.
-                </p>
+                <h6 className="fw-bold text-dark mb-3"><i className="bi bi-envelope-at me-2"></i>Destinatarios</h6>
                 <div className="mb-3">
                     <label className="form-label small fw-bold text-secondary">Correo del Administrador</label>
                     <div className="input-group">
                         <span className="input-group-text bg-white text-muted"><i className="bi bi-person-badge"></i></span>
-                        <input 
-                            type="email" 
-                            className="form-control" 
-                            placeholder="admin.ti@empresa.com" 
+                        <input type="email" className="form-control" placeholder="admin.ti@empresa.com" 
                             value={settings.admin_email || ''}
                             onChange={(e) => setSettings({...settings, admin_email: e.target.value})}
                         />
@@ -295,24 +316,16 @@ const Configuration = () => {
             </div>
 
             <div className="card p-4 border-0 shadow-sm bg-light">
-                <h6 className="fw-bold text-dark mb-3">Activar Notificaciones para:</h6>
-                
+                <h6 className="fw-bold text-dark mb-3">Activar Notificaciones</h6>
                 <div className="form-check form-switch mb-3">
-                    <input 
-                        className="form-check-input" 
-                        type="checkbox" 
-                        id="diskAlert" 
+                    <input className="form-check-input" type="checkbox" id="diskAlert" 
                         checked={settings.alert_disk_full === '1'}
                         onChange={(e) => setSettings({...settings, alert_disk_full: e.target.checked ? '1' : '0'})}
                     />
                     <label className="form-check-label" htmlFor="diskAlert">Almacenamiento Crítico (Disco lleno +90%)</label>
                 </div>
-                
                 <div className="form-check form-switch">
-                    <input 
-                        className="form-check-input" 
-                        type="checkbox" 
-                        id="serviceAlert" 
+                    <input className="form-check-input" type="checkbox" id="serviceAlert" 
                         checked={settings.alert_service_down === '1'}
                         onChange={(e) => setSettings({...settings, alert_service_down: e.target.checked ? '1' : '0'})}
                     />
@@ -325,6 +338,7 @@ const Configuration = () => {
     // --- RENDERIZADO PRINCIPAL ---
     const renderContent = () => {
         switch (activeSection) {
+            case 'routes': return renderRoutesConfig(); // <--- NUEVA SECCIÓN
             case 'storage': return renderStorageConfig();
             case 'sync': return renderSyncConfig();
             case 'notifications': return renderNotificationsConfig();
@@ -339,6 +353,10 @@ const Configuration = () => {
             <div className={styles.layoutWrapper}>
                 <aside className={styles.sidebar}>
                     <nav className={styles.nav}>
+                        {/* BOTÓN NUEVO: RUTAS */}
+                        <button className={`${styles.navItem} ${activeSection === 'routes' ? styles.navActive : ''}`} onClick={() => setActiveSection('routes')}>
+                            <i className="bi bi-signpost-split me-2"></i> Rutas
+                        </button>
                         <button className={`${styles.navItem} ${activeSection === 'storage' ? styles.navActive : ''}`} onClick={() => setActiveSection('storage')}>
                             <i className="bi bi-hdd-rack me-2"></i> Almacenamiento
                         </button>

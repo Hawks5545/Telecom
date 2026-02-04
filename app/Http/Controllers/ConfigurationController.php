@@ -10,10 +10,24 @@ class ConfigurationController extends Controller
 {
     // --- 1. SECCIÓN: GESTIÓN DE RUTAS (STORAGE LOCATIONS) ---
 
-    // Obtener todas las rutas configuradas
-    public function getStorageLocations()
+    // Obtener todas las rutas configuradas (CON BUSCADOR)
+    public function getStorageLocations(Request $request)
     {
-        $locations = StorageLocation::orderBy('created_at', 'desc')->get();
+        $search = $request->input('search');
+
+        // Iniciamos la consulta ordenando por fecha
+        $query = StorageLocation::orderBy('created_at', 'desc');
+
+        // Si hay búsqueda, filtramos
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")       // Buscar por nombre/alias
+                  ->orWhere('path', 'like', "%{$search}%")     // Buscar por ruta física
+                  ->orWhere('created_at', 'like', "%{$search}%"); // Buscar por fecha
+            });
+        }
+
+        $locations = $query->get();
         return response()->json($locations);
     }
 
@@ -66,14 +80,12 @@ class ConfigurationController extends Controller
 
     public function getSettings()
     {
-        // Devuelve un objeto simple: { "download_format": "mp3", "scan_freq": "30" }
         $settings = Setting::pluck('value', 'key');
         return response()->json($settings);
     }
 
     public function saveSettings(Request $request)
     {
-        // Recorre todo lo que envíe el frontend y lo guarda/actualiza
         foreach ($request->all() as $key => $value) {
             Setting::updateOrCreate(
                 ['key' => $key],

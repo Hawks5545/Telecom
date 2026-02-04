@@ -22,3 +22,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/public/pruebaTelecom3/*
+/public/pruebaTelecom2/*
+/public/pruebaTelecom/*

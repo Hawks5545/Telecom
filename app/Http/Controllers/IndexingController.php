@@ -9,19 +9,24 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-// IMPORTANTE: Para capturar el error de duplicados (1062)
 use Illuminate\Database\QueryException; 
 
 class IndexingController extends Controller
 {
     private function normalizePath($inputPath)
     {
-        $path = trim($inputPath);
-        $path = str_replace(['"', "'"], '', $path);
+        // 1. Quitar comillas y espacios extremos
+        $path = trim($inputPath, " \t\n\r\0\x0B\"'");
+        
+        // 2. Unificar separadores a barra normal (/)
         $path = str_replace('\\', '/', $path);
 
+        // 3. Quitar barra final si existe (para evitar duplicados por "carpeta/" vs "carpeta")
+        $path = rtrim($path, '/');
+
+        // 4. Resolver rutas relativas si no tienen dos puntos (C:) o barra inicial (/)
         if (!str_contains($path, ':') && !str_starts_with($path, '/')) {
-            return public_path($path);
+            return public_path($path); // Ojo con esto si usas rutas absolutas de Windows
         }
         return $path;
     }
@@ -71,12 +76,20 @@ class IndexingController extends Controller
             $options = $request->input('options');
 
             if (!is_dir($rootPath)) {
-                return response()->json(['message' => 'La carpeta no existe.'], 404);
+                return response()->json(['message' => 'La carpeta no existe físicamente.'], 404);
             }
 
             // --- 1. GESTIÓN SEGURA DE LA UBICACIÓN (CARPETA) ---
+            
+            // Intentamos buscarla exactamente como la normalizamos
             $location = StorageLocation::where('path', $rootPath)->first();
 
+            // Si no la encontramos, intentamos buscarla con/sin barra final por si acaso
+            if (!$location) {
+                $location = StorageLocation::where('path', $rootPath . '/')->first();
+            }
+
+            // Si definitivamente no existe en memoria, intentamos crearla
             if (!$location) {
                 try {
                     $location = StorageLocation::create([
@@ -85,12 +98,28 @@ class IndexingController extends Controller
                         'is_active' => true
                     ]);
                 } catch (QueryException $e) {
+                    // Error 1062 = Duplicate entry. Significa que YA EXISTE en BD pero no la encontramos antes (quizás por mayúsculas/minúsculas o barras invertidas guardadas)
                     if ($e->errorInfo[1] == 1062) {
+                        // Plan B: Buscarla relajando la coincidencia (si la BD lo permite) o asumiendo que es la ruta exacta
                         $location = StorageLocation::where('path', $rootPath)->first();
+                        
+                        // Si aun así es null (muy raro), intentamos buscarla reemplazando barras inversas por si en BD está guardada "mal"
+                        if (!$location) {
+                            $pathWindows = str_replace('/', '\\', $rootPath);
+                            $location = StorageLocation::where('path', $pathWindows)->first();
+                        }
                     } else {
-                        throw $e;
+                        throw $e; // Si es otro error, lo lanzamos
                     }
                 }
+            }
+
+            // --- PROTECCIÓN CRÍTICA ---
+            if (!$location) {
+                return response()->json([
+                    'message' => 'Error crítico: La ubicación existe en base de datos pero el sistema no pudo recuperar su ID. Esto suele pasar por diferencias en las barras (/) o mayúsculas.',
+                    'debug_path' => $rootPath
+                ], 500);
             }
 
             $processedCount = 0;
@@ -103,17 +132,19 @@ class IndexingController extends Controller
                 if ($file->isFile() && in_array(strtolower($file->getExtension()), ['mp3', 'wav', 'ogg', 'aac', 'wma'])) {
                     
                     $filename = $file->getFilename();
-                    $fullPath = str_replace('\\', '/', $file->getPathname());
+                    // Normalizamos full path para evitar duplicados por barras
+                    $fullPath = $this->normalizePath($file->getPathname());
 
-                    $parentDir = str_replace('\\', '/', $file->getPath());
-                    $relativePath = str_replace(str_replace('\\', '/', $rootPath), '', $parentDir);
+                    $parentDir = $this->normalizePath($file->getPath());
+                    $relativePath = str_replace($rootPath, '', $parentDir);
                     $relativePath = trim($relativePath, '/');
 
                     $fileTimestamp = $file->getMTime(); 
                     $originalDate = Carbon::createFromTimestamp($fileTimestamp);
 
-                    // Filtro rápido por PHP
+                    // Filtro rápido por PHP para saltar duplicados
                     if ($options['skipDuplicates'] ?? true) {
+                        // Buscamos normalizando también la consulta
                         if (Recording::where('full_path', $fullPath)->exists()) {
                             $skippedCount++;
                             continue;
@@ -125,7 +156,7 @@ class IndexingController extends Controller
                     // --- 2. INSERCIÓN SEGURA DEL ARCHIVO ---
                     try {
                         Recording::create([
-                            'storage_location_id' => $location->id,
+                            'storage_location_id' => $location->id, // AQUI YA NO FALLARÁ PORQUE $location ESTÁ VALIDADO
                             'filename' => $filename,
                             'path' => $fullPath, 
                             'full_path' => $fullPath,
@@ -163,14 +194,14 @@ class IndexingController extends Controller
             } elseif ($processedCount > 0 && $skippedCount > 0) {
                 $statusType = 'info';
                 $titleMsg = 'Indexación Parcial';
-                $message = "Se agregaron {$processedCount} archivos nuevos y se omitieron {$skippedCount} duplicados.";
+                $message = "Se agregaron {$processedCount} archivos nuevos. {$skippedCount} ya existían.";
             }
 
             return response()->json([
                 'indexed' => $processedCount,
                 'skipped' => $skippedCount,
                 'total_in_db' => Recording::count(),
-                'status_type' => $statusType,
+                'status_type' => $statusType, 
                 'title_msg' => $titleMsg,
                 'message' => $message
             ]);
@@ -212,17 +243,15 @@ class IndexingController extends Controller
             if ($len == 10 && str_starts_with($num, '3')) {
                 if (!$data['telefono']) {
                     $data['telefono'] = $num;
-                    continue; // ¡IMPORTANTE! Si es celular, saltamos al siguiente ciclo para no evaluarlo como cédula
+                    continue; 
                 }
             }
 
             // C. CÉDULA (7 a 10 dígitos)
             if ($len >= 7 && $len <= 10) {
-                // Si parece celular (10 dig y empieza por 3) pero llegamos aquí, lo ignoramos para cédula
                 if ($len == 10 && str_starts_with($num, '3')) {
                     continue; 
                 }
-                
                 if (!$data['cedula']) {
                     $data['cedula'] = $num;
                 }

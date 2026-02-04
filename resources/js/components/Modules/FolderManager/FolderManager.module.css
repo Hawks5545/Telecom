@@ -1,5 +1,3 @@
-/* resources/js/components/Modules/FolderManager/FolderManager.module.css */
-
 /* --- ANIMACIONES --- */
 .fadeIn { 
     animation: fadeIn 0.5s ease-in-out; 
@@ -10,36 +8,45 @@
     to { opacity: 1; transform: translateY(0); } 
 }
 
+/* --- ESTRUCTURA FULL HEIGHT (Sin scroll global) --- */
+.fullHeightContainer {
+    height: calc(100vh - 100px); /* Ajustar según altura de tu navbar */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Evita que la página completa haga scroll */
+}
+
 /* --- TEXTOS Y TÍTULOS --- */
 .pageTitle { 
     color: #005461; 
     font-weight: 700; 
     margin: 0; 
+    font-size: 1.5rem;
 }
 
 .label { 
     font-weight: 600; 
     color: #6c757d; 
-    font-size: 0.85rem; 
-    margin-bottom: 0.5rem; 
+    font-size: 0.8rem; 
+    margin-bottom: 0.3rem; 
 }
 
 /* --- CARDS Y ESTRUCTURA --- */
 .cardCustom {
     border: none;
-    border-radius: 15px;
+    border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    margin-bottom: 1.5rem;
-    overflow: hidden;
     background-color: white;
+    display: flex;
+    flex-direction: column;
 }
 
 .cardHeader {
     background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
     color: white;
     font-weight: 600;
-    padding: 1rem 1.5rem;
-    border-radius: 15px 15px 0 0;
+    padding: 0.8rem 1.2rem;
+    border-radius: 12px 12px 0 0;
 }
 
 /* --- BOTONES DE FILTRO --- */
@@ -58,19 +65,21 @@
 /* --- BREADCRUMBS --- */
 .breadcrumbBar {
     background-color: #f8f9fa; 
-    padding: 10px 20px; 
-    border-radius: 10px; 
-    margin-bottom: 15px;
+    padding: 8px 15px; 
+    border-radius: 8px; 
+    margin-bottom: 10px;
     display: flex; 
     align-items: center; 
     gap: 10px; 
     border: 1px solid #e9ecef;
+    flex-shrink: 0; /* Evita que se encoja */
 }
 
 .breadcrumbItem { 
     color: #6c757d; 
     cursor: pointer; 
     font-weight: 500; 
+    font-size: 0.9rem;
     transition: color 0.2s; 
 }
 
@@ -82,67 +91,84 @@
 .breadcrumbActive { 
     color: #005461; 
     font-weight: 700; 
+    font-size: 0.9rem;
     cursor: default; 
 }
 
 .separator { 
     color: #adb5bd; 
-    font-size: 0.8rem; 
+    font-size: 0.7rem; 
 }
 
 /* --- TABLA Y SCROLL INTERNO --- */
-.tableWrapper {
-    max-height: 50vh;
-    overflow-y: auto;
+.cardTable {
+    overflow: hidden; /* Contiene el scroll dentro de la card */
+    margin-bottom: 0 !important;
+}
+
+.tableContainer {
+    flex: 1; /* Ocupa todo el espacio disponible */
+    overflow: hidden;
     position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.tableWrapper {
+    flex: 1;
+    overflow-y: auto; /* Scroll vertical aquí */
+    overflow-x: auto;
     border-bottom: 1px solid #dee2e6;
 }
 
-.tableWrapper::-webkit-scrollbar { 
-    width: 8px; 
-    height: 8px; 
-}
-
-.tableWrapper::-webkit-scrollbar-track { 
-    background: #f1f1f1; 
-}
-
-.tableWrapper::-webkit-scrollbar-thumb { 
-    background: #ccc; 
-    border-radius: 4px; 
-}
-
-.tableWrapper::-webkit-scrollbar-thumb:hover { 
-    background: #bbb; 
-}
+/* Scrollbar estilizado */
+.tableWrapper::-webkit-scrollbar { width: 8px; height: 8px; }
+.tableWrapper::-webkit-scrollbar-track { background: #f1f1f1; }
+.tableWrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+.tableWrapper::-webkit-scrollbar-thumb:hover { background: #bbb; }
 
 .tableHeader th {
-    position: sticky;
+    position: sticky; /* Cabecera fija */
     top: 0;
     z-index: 10;
     background-color: #005461;
     color: white;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
     box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);
+    white-space: nowrap;
 }
 
 /* --- ICONOS Y ELEMENTOS DE TABLA --- */
 .folderIcon { 
     color: #F8D775; 
-    font-size: 1.2rem; 
-    margin-right: 10px; 
+    font-size: 1.5rem; /* Icono un poco más grande */
 }
 
 .fileIcon { 
     color: #3BC1A8; 
-    font-size: 1.2rem; 
-    margin-right: 10px; 
+    font-size: 1.5rem; 
+}
+
+/* NUEVA CLASE PARA LA RUTA DEBAJO DEL NOMBRE */
+.itemPath {
+    display: block;
+    font-size: 0.7rem;
+    color: #adb5bd; /* Gris suave */
+    max-width: 400px; /* Ancho máximo para que no rompa la tabla */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Pone tres puntos (...) si es muy larga */
+    line-height: 1.2;
+    margin-top: 2px;
 }
 
 /* --- BOTONES DE ACCIÓN EN TABLA --- */
 .btnOpen { 
     color: #005461; 
     border-color: #005461; 
-    font-size: 0.85rem; 
+    font-size: 0.8rem; 
+    padding: 0.2rem 0.5rem;
 }
 
 .btnOpen:hover { 
@@ -153,7 +179,8 @@
 .btnDownload { 
     color: #3BC1A8; 
     border-color: #3BC1A8; 
-    font-size: 0.85rem; 
+    font-size: 0.8rem; 
+    padding: 0.2rem 0.5rem;
 }
 
 .btnDownload:hover { 
