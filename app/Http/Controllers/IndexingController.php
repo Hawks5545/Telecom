@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Recording;
 use App\Models\StorageLocation;
+use App\Models\AuditLog; 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Illuminate\Database\QueryException; 
+use Illuminate\Support\Facades\Auth; 
 
 class IndexingController extends Controller
 {
@@ -79,17 +81,17 @@ class IndexingController extends Controller
                 return response()->json(['message' => 'La carpeta no existe físicamente.'], 404);
             }
 
-            // --- 1. GESTIÓN SEGURA DE LA UBICACIÓN (CARPETA) ---
+            // 1. GESTIÓN SEGURA DE LA UBICACIÓN (CARPETA)
             
-            // Intentamos buscarla exactamente como la normalizamos
+            // Intenta buscarla exactamente como la normalizamos
             $location = StorageLocation::where('path', $rootPath)->first();
 
-            // Si no la encontramos, intentamos buscarla con/sin barra final por si acaso
+            // Si no la encuentra, intenta buscarla con/sin barra final por si acaso
             if (!$location) {
                 $location = StorageLocation::where('path', $rootPath . '/')->first();
             }
 
-            // Si definitivamente no existe en memoria, intentamos crearla
+            // Si definitivamente no existe en memoria, intenta crearla
             if (!$location) {
                 try {
                     $location = StorageLocation::create([
@@ -98,26 +100,22 @@ class IndexingController extends Controller
                         'is_active' => true
                     ]);
                 } catch (QueryException $e) {
-                    // Error 1062 = Duplicate entry. Significa que YA EXISTE en BD pero no la encontramos antes (quizás por mayúsculas/minúsculas o barras invertidas guardadas)
                     if ($e->errorInfo[1] == 1062) {
-                        // Plan B: Buscarla relajando la coincidencia (si la BD lo permite) o asumiendo que es la ruta exacta
                         $location = StorageLocation::where('path', $rootPath)->first();
-                        
-                        // Si aun así es null (muy raro), intentamos buscarla reemplazando barras inversas por si en BD está guardada "mal"
                         if (!$location) {
                             $pathWindows = str_replace('/', '\\', $rootPath);
                             $location = StorageLocation::where('path', $pathWindows)->first();
                         }
                     } else {
-                        throw $e; // Si es otro error, lo lanzamos
+                        throw $e; 
                     }
                 }
             }
 
-            // --- PROTECCIÓN CRÍTICA ---
+            //  PROTECCIÓN CRÍTICA
             if (!$location) {
                 return response()->json([
-                    'message' => 'Error crítico: La ubicación existe en base de datos pero el sistema no pudo recuperar su ID. Esto suele pasar por diferencias en las barras (/) o mayúsculas.',
+                    'message' => 'Error crítico: La ubicación existe en base de datos pero el sistema no pudo recuperar su ID.',
                     'debug_path' => $rootPath
                 ], 500);
             }
@@ -132,7 +130,6 @@ class IndexingController extends Controller
                 if ($file->isFile() && in_array(strtolower($file->getExtension()), ['mp3', 'wav', 'ogg', 'aac', 'wma'])) {
                     
                     $filename = $file->getFilename();
-                    // Normalizamos full path para evitar duplicados por barras
                     $fullPath = $this->normalizePath($file->getPathname());
 
                     $parentDir = $this->normalizePath($file->getPath());
@@ -142,9 +139,7 @@ class IndexingController extends Controller
                     $fileTimestamp = $file->getMTime(); 
                     $originalDate = Carbon::createFromTimestamp($fileTimestamp);
 
-                    // Filtro rápido por PHP para saltar duplicados
                     if ($options['skipDuplicates'] ?? true) {
-                        // Buscamos normalizando también la consulta
                         if (Recording::where('full_path', $fullPath)->exists()) {
                             $skippedCount++;
                             continue;
@@ -153,10 +148,9 @@ class IndexingController extends Controller
 
                     $meta = $this->extractMetadata($filename);
 
-                    // --- 2. INSERCIÓN SEGURA DEL ARCHIVO ---
                     try {
                         Recording::create([
-                            'storage_location_id' => $location->id, // AQUI YA NO FALLARÁ PORQUE $location ESTÁ VALIDADO
+                            'storage_location_id' => $location->id,
                             'filename' => $filename,
                             'path' => $fullPath, 
                             'full_path' => $fullPath,
@@ -181,6 +175,16 @@ class IndexingController extends Controller
                     }
                 }
             }
+
+            // AUDITORÍA 
+            try {
+                AuditLog::create([
+                    'user_id' => Auth::id(),
+                    'action' => 'Indexación',
+                    'details' => "Indexada ruta: $rootPath. Nuevos: $processedCount. Saltados: $skippedCount.",
+                    'ip_address' => $request->ip()
+                ]);
+            } catch (\Exception $e) { Log::error("Audit Error: " . $e->getMessage()); }
 
             // --- 3. RESPUESTA INTELIGENTE ---
             $statusType = 'success';

@@ -17,24 +17,22 @@ class RoleController extends Controller
         $request->validate([
             'display_name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'permisos' => 'array' // Validamos que llegue un array
+            'permisos' => 'array' 
         ]);
 
-        // Generamos el slug interno (ej: "Operador Nocturno" -> "operador_nocturno")
         $name = strtolower(str_replace(' ', '_', $request->display_name));
 
         $role = Role::create([
             'name' => $name,
             'display_name' => $request->display_name,
             'description' => $request->description,
-            // Guardamos el array de permisos que viene del React
             'permissions' => $request->permisos ?? [] 
         ]);
 
         return response()->json($role, 201);
     }
 
-    // --- FUNCIÓN DE EDICIÓN ---
+    //  FUNCIÓN DE EDICIÓN 
    public function update(Request $request, $id)
     {
         $role = Role::findOrFail($id);
@@ -46,7 +44,7 @@ class RoleController extends Controller
             ], 403);
         }
 
-        // --- VALIDACIÓN NORMAL PARA OTROS ROLES ---
+        // VALIDACIÓN NORMAL PARA OTROS ROLES 
         $request->validate([
             'display_name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -73,15 +71,13 @@ class RoleController extends Controller
         }
 
         // 2. SEGURIDAD: No borrar un rol si hay usuarios usándolo
-        // Esto evita dejar usuarios "huerfanos" sin permisos.
+
         if ($role->users()->count() > 0) {
             return response()->json([
                 'message' => 'No puedes eliminar este rol porque hay usuarios asignados a él. Primero cambia el rol de esos usuarios.'
             ], 400);
         }
 
-        // Borra también los permisos asociados en la tabla pivote (si usa una)
-        // O simplemente borramos el rol
         $role->delete();
 
         return response()->json(['message' => 'Rol eliminado correctamente.']);

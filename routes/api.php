@@ -9,6 +9,7 @@ use App\Http\Controllers\IndexingController;
 use App\Http\Controllers\FolderManagerController;
 use App\Http\Controllers\ConfigurationController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\AuditController;
 
 // --- RUTAS PÚBLICAS ---
 Route::post('/login', [AuthController::class, 'login']);
@@ -34,6 +35,10 @@ Route::post('/search/download-zip', [SearchController::class, 'downloadZip']);
     Route::get('/folder-manager/items', [App\Http\Controllers\FolderManagerController::class, 'getItems']);
     Route::get('/folder-manager/download/{id}', [App\Http\Controllers\FolderManagerController::class, 'downloadItem']);
     Route::get('/folder-manager/download-folder/{id}', [FolderManagerController::class, 'downloadFolder']);
+
+    //Auditoria
+    Route::get('/audit/logs', [AuditController::class, 'index']);
+    Route::get('/audit/users', [AuditController::class, 'getUsers']);
 
     // Usuarios
     Route::get('/users', [UserController::class, 'index']);

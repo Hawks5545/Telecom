@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Recording;
 use App\Models\StorageLocation;
+use App\Models\AuditLog; 
 use ZipArchive;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Auth; 
 
 class FolderManagerController extends Controller
 {
@@ -18,13 +20,13 @@ class FolderManagerController extends Controller
         $dateFrom = $request->input('dateFrom');
         $dateTo = $request->input('dateTo');
 
-        // --- NIVEL RAÍZ (CARPETAS/UBICACIONES) ---
+        // NIVEL RAÍZ (CARPETAS/UBICACIONES)
         if ($parentId == 0) {
             
-            // 1. Iniciamos la consulta base
+            // 1. Inicia la consulta base
             $query = StorageLocation::where('is_active', true);
 
-            // 2. Aplicamos Filtro de Búsqueda (Nombre o Ruta)
+            // 2.Filtro de Búsqueda (Nombre o Ruta)
             if ($search) {
                 $query->where(function($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -32,7 +34,7 @@ class FolderManagerController extends Controller
                 });
             }
 
-            // 3. Aplicamos Filtro de Fechas (Fecha de creación de la carpeta)
+            // 3. Filtro de Fechas (Fecha de creación de la carpeta)
             if ($dateFrom) {
                 $query->whereDate('created_at', '>=', $dateFrom);
             }
@@ -40,7 +42,7 @@ class FolderManagerController extends Controller
                 $query->whereDate('created_at', '<=', $dateTo);
             }
 
-            // 4. Ejecutamos la consulta filtrada
+            // 4. consulta filtrada
             $locations = $query->orderBy('created_at', 'desc')->get();
             
             // Las carpetas raíz no se paginan en este diseño, se envían todas las coincidentes
@@ -61,7 +63,7 @@ class FolderManagerController extends Controller
             }));
         }
 
-        // --- NIVEL DE ARCHIVOS (GRABACIONES DENTRO DE UNA CARPETA) ---
+        // NIVEL DE ARCHIVOS (GRABACIONES DENTRO DE UNA CARPETA)
         $query = Recording::where('storage_location_id', $parentId);
 
         if ($search) {
@@ -76,10 +78,8 @@ class FolderManagerController extends Controller
         if ($dateFrom) $query->whereDate('fecha_grabacion', '>=', $dateFrom);
         if ($dateTo) $query->whereDate('fecha_grabacion', '<=', $dateTo);
 
-        // 1. Obtenemos el objeto paginador original
         $files = $query->latest('original_created_at')->paginate(50); 
 
-        // 2. Transformamos solo la colección de items
         $formattedCollection = collect($files->items())->map(function($file) use ($parentId) {
             $displayDate = 'N/A';
             if ($file->original_created_at) {
@@ -105,13 +105,12 @@ class FolderManagerController extends Controller
             ];
         });
 
-        // 3. Reinyectamos la colección formateada
         $files->setCollection($formattedCollection);
 
         return response()->json($files);
     }
 
-    public function downloadItem($id)
+    public function downloadItem(Request $request, $id) 
     {
         $recording = Recording::findOrFail($id);
         // Normalizamos ruta por seguridad
@@ -120,11 +119,23 @@ class FolderManagerController extends Controller
         if (!file_exists($pathToUse)) {
             return response()->json(['message' => 'Archivo no encontrado en disco.'], 404);
         }
+
+        //  AUDITORÍA 
+        try {
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'Descarga',
+                'details' => "Descarga individual: {$recording->filename}",
+                'ip_address' => $request->ip()
+            ]);
+        } catch (\Exception $e) { Log::error("Audit Error: " . $e->getMessage()); }
+        // -------------------------
+
         return response()->download($pathToUse, $recording->filename);
     }
 
-    // --- DESCARGA DE CARPETA COMPLETA (ZIP MEJORADO) ---
-    public function downloadFolder($id)
+    // DESCARGA DE CARPETA COMPLETA (ZIP)
+    public function downloadFolder(Request $request, $id) 
     {
         try {
             if (!class_exists('ZipArchive')) {
@@ -168,6 +179,16 @@ class FolderManagerController extends Controller
                     if (file_exists($zipPath)) unlink($zipPath);
                     return response()->json(['message' => 'Error: Los archivos existen en BD pero no físicamente.'], 404);
                 }
+
+                // AUDITORÍA
+                try {
+                    AuditLog::create([
+                        'user_id' => Auth::id(),
+                        'action' => 'Descarga ZIP Folder',
+                        'details' => "Carpeta descargada: {$location->name} ($filesAdded archivos)",
+                        'ip_address' => $request->ip()
+                    ]);
+                } catch (\Exception $e) { Log::error("Audit Error: " . $e->getMessage()); }
 
                 return response()->download($zipPath)->deleteFileAfterSend(true);
             }

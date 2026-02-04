@@ -132,7 +132,15 @@ const FolderManager = () => {
             : `http://127.0.0.1:8000/api/folder-manager/download/${item.id}`;
 
         try {
-            showAlert('loading', 'Procesando', isFolder ? 'Comprimiendo carpeta...' : 'Iniciando descarga...');
+            // --- [ACTUALIZADO] MENSAJE DE ESPERA MEJORADO ---
+            const loadingTitle = isFolder ? 'Comprimiendo Archivos...' : 'Iniciando descarga...';
+            const loadingMsg = isFolder 
+                ? 'Estamos creando tu archivo ZIP. \n\nPara carpetas grandes (más de 1GB), esto puede tardar varios minutos mientras el servidor comprime los archivos. \n\n¡Por favor no cierres esta ventana!' 
+                : 'Tu descarga comenzará en breve...';
+
+            showAlert('loading', loadingTitle, loadingMsg);
+            // ------------------------------------------------
+
             const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
 
             if (response.ok) {

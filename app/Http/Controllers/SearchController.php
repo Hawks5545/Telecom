@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Recording;
 use App\Models\StorageLocation;
+use App\Models\AuditLog;
 use ZipArchive;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth; 
 
 class SearchController extends Controller
 {
@@ -20,44 +22,31 @@ class SearchController extends Controller
     // 2. Búsqueda Principal con Paginación
     public function search(Request $request)
     {
-        $query = Recording::with('storageLocation'); // Eager loading para optimizar
+        $query = Recording::with('storageLocation'); 
 
         // --- FILTROS ---
-        
-        // Cédula (Coincidencia parcial)
         if ($request->filled('cedula')) {
             $query->where('cedula', 'like', '%' . $request->cedula . '%');
         }
-
-        // [NUEVO] Filtro de Teléfono
         if ($request->filled('telefono')) {
             $query->where('telefono', 'like', '%' . $request->telefono . '%');
         }
-
-        // Nombre/Cliente (Buscamos en el nombre del archivo)
         if ($request->filled('filename')) {
             $query->where('filename', 'like', '%' . $request->filename . '%');
         }
-
-        // Fechas
         if ($request->filled('dateFrom')) {
             $query->whereDate('fecha_grabacion', '>=', $request->dateFrom);
         }
         if ($request->filled('dateTo')) {
             $query->whereDate('fecha_grabacion', '<=', $request->dateTo);
         }
-
-        // Carpeta Específica
         if ($request->filled('folderId')) {
             $query->where('storage_location_id', $request->folderId);
         }
-
-        // Campaña (Input de texto, búsqueda parcial)
         if ($request->filled('campana')) {
             $query->where('campana', 'like', '%' . $request->campana . '%');
         }
 
-        // Ordenamiento y Paginación
         $results = $query->orderBy('fecha_grabacion', 'desc')->paginate(15);
 
         return response()->json($results);
@@ -78,7 +67,6 @@ class SearchController extends Controller
             return response()->json(['message' => 'Archivos no encontrados.'], 404);
         }
 
-        // Crear carpeta temporal
         $tempDir = storage_path('app/temp');
         if (!File::exists($tempDir)) File::makeDirectory($tempDir, 0755, true);
 
@@ -90,10 +78,9 @@ class SearchController extends Controller
             $filesAdded = 0;
 
             foreach ($recordings as $rec) {
-                $realPath = $rec->full_path ?? $rec->path;
+                $realPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $rec->full_path ?? $rec->path);
                 
                 if (file_exists($realPath)) {
-                    // Agregamos el archivo al ZIP con su nombre original
                     $zip->addFile($realPath, $rec->filename);
                     $filesAdded++;
                 }
@@ -103,6 +90,18 @@ class SearchController extends Controller
 
             if ($filesAdded === 0) {
                 return response()->json(['message' => 'Ninguno de los archivos seleccionados existe físicamente.'], 404);
+            }
+
+            // REGISTRO EN AUDITORÍA
+            try {
+                AuditLog::create([
+                    'user_id' => Auth::id(), 
+                    'action' => 'Descarga ZIP',
+                    'details' => "Descarga masiva de $filesAdded grabaciones.",
+                    'ip_address' => $request->ip()
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Error registrando auditoría ZIP: " . $e->getMessage());
             }
 
             return response()->download($zipPath)->deleteFileAfterSend(true);

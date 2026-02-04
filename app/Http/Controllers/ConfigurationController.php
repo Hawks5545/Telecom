@@ -15,15 +15,15 @@ class ConfigurationController extends Controller
     {
         $search = $request->input('search');
 
-        // Iniciamos la consulta ordenando por fecha
+        // Se inicia la consulta ordenando por fecha
         $query = StorageLocation::orderBy('created_at', 'desc');
 
-        // Si hay búsqueda, filtramos
+        // Si hay búsqueda, filtra
         if ($search) {
             $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")       // Buscar por nombre/alias
-                  ->orWhere('path', 'like', "%{$search}%")     // Buscar por ruta física
-                  ->orWhere('created_at', 'like', "%{$search}%"); // Buscar por fecha
+                $q->where('name', 'like', "%{$search}%")       
+                  ->orWhere('path', 'like', "%{$search}%")     
+                  ->orWhere('created_at', 'like', "%{$search}%"); 
             });
         }
 

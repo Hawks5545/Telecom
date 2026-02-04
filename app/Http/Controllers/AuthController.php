@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User; 
+use App\Models\AuditLog; 
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
@@ -49,7 +50,6 @@ class AuthController extends Controller
         }
 
         // --- CARGA DE ROLES ---
-        
         $user->load('role'); 
 
         // Valores por defecto por seguridad
@@ -61,7 +61,7 @@ class AuthController extends Controller
             $rolInterno = $user->role->name;         
             $rolVisible = $user->role->display_name; 
 
-            // Lgica Permisos
+            // Lógica Permisos
             if ($rolInterno === 'admin') {
                 $permisos = ['*'];
             } else {
@@ -69,7 +69,17 @@ class AuthController extends Controller
             }
         }
 
-        // 6. Respuesta al Frontend
+        // AUDITORÍA LOGIN 
+        try {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'Login',
+                'details' => "Inicio de sesión exitoso: {$user->email}",
+                'ip_address' => $request->ip()
+            ]);
+        } catch (\Exception $e) {}
+
+        //  Respuesta al Frontend
         return response()->json([
             'message' => 'Bienvenido al sistema TeleCom',
             'user' => [
@@ -84,8 +94,22 @@ class AuthController extends Controller
         ], 200);
     }
     
-    // Función para Cerrar Sesión
+    //Cerrar sesion
     public function logout(Request $request) {
+        
+        // AUDITORÍA LOGOUT 
+        try {
+            $user = $request->user();
+            if ($user) {
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'action' => 'Logout',
+                    'details' => "Cierre de sesión",
+                    'ip_address' => $request->ip()
+                ]);
+            }
+        } catch (\Exception $e) {}
+
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Sesión cerrada correctamente']);
     }
@@ -115,7 +139,7 @@ class AuthController extends Controller
             'password' => [
                 'required',
                 'confirmed',
-                PasswordRules::min(8)->letters()->mixedCase()->numbers()->symbols()
+                'PasswordRules'::min(8)->letters()->mixedCase()->numbers()->symbols()
             ],
         ]);
 
@@ -126,7 +150,7 @@ class AuthController extends Controller
                     'password' => Hash::make($password)
                 ])->setRememberToken(Str::random(60));
 
-                // --- ACTIVACIÓN AUTOMÁTICA ---
+                // --- Activacion automatica al registrar nueva contraseña ---
                 if ($user->email_verified_at === null) {
                     $user->email_verified_at = now();
                     $user->is_active = true; 
