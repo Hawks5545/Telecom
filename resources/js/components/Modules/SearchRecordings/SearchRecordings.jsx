@@ -10,7 +10,7 @@ const SearchRecordings = () => {
     
     // Mantenemos los IDs seleccionados
     const [selectedItems, setSelectedItems] = useState([]);
-    // [NUEVO] Mantenemos un mapa de los pesos de los items seleccionados { id: bytes }
+    // Mantenemos un mapa de los pesos de los items seleccionados { id: bytes }
     const [selectedSizes, setSelectedSizes] = useState({});
 
     const [isLoading, setIsLoading] = useState(false);
@@ -22,6 +22,9 @@ const SearchRecordings = () => {
     const [filters, setFilters] = useState({
         cedula: '', telefono: '', dateFrom: '', dateTo: '', folderId: '', campana: ''
     });
+
+    // Estado para la fecha máxima (HOY)
+    const [maxDate, setMaxDate] = useState('');
 
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, type: 'info', title: '', message: '', onConfirm: null });
     const showAlert = (type, title, message, onConfirm = null) => setAlertConfig({ isOpen: true, type, title, message, onConfirm });
@@ -44,7 +47,11 @@ const SearchRecordings = () => {
     }, [selectedSizes]);
 
     // --- CARGA ---
-    useEffect(() => { fetchFolders(); }, []);
+    useEffect(() => { 
+        fetchFolders(); 
+        // Establecer la fecha máxima como HOY
+        setMaxDate(new Date().toISOString().split('T')[0]);
+    }, []);
 
     useEffect(() => {
         const timer = setTimeout(() => fetchResults(pagination.currentPage), 500);
@@ -201,8 +208,30 @@ const SearchRecordings = () => {
                         <div className="col-md-2"><label className={styles.label}>Cédula</label><input className="form-control form-control-sm" name="cedula" value={filters.cedula} onChange={handleFilterChange} placeholder="1098..." /></div>
                         <div className="col-md-2"><label className={styles.label}>Teléfono</label><input className="form-control form-control-sm" name="telefono" value={filters.telefono} onChange={handleFilterChange} placeholder="300..." /></div>
                         <div className="col-md-3"><label className={styles.label}>Campaña</label><input className="form-control form-control-sm" name="campana" value={filters.campana} onChange={handleFilterChange} placeholder="Escribe..." /></div>
-                        <div className="col-md-2"><label className={styles.label}>Desde</label><input type="date" className="form-control form-control-sm" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} /></div>
-                        <div className="col-md-3"><label className={styles.label}>Hasta</label><input type="date" className="form-control form-control-sm" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} /></div>
+                        
+                        {/* INPUTS DE FECHA CON MAX DATE APLICADO */}
+                        <div className="col-md-2">
+                            <label className={styles.label}>Desde</label>
+                            <input 
+                                type="date" 
+                                className="form-control form-control-sm" 
+                                name="dateFrom" 
+                                value={filters.dateFrom} 
+                                max={maxDate} // BLOQUEO FUTURO
+                                onChange={handleFilterChange} 
+                            />
+                        </div>
+                        <div className="col-md-3">
+                            <label className={styles.label}>Hasta</label>
+                            <input 
+                                type="date" 
+                                className="form-control form-control-sm" 
+                                name="dateTo" 
+                                value={filters.dateTo} 
+                                max={maxDate} // BLOQUEO FUTURO
+                                onChange={handleFilterChange} 
+                            />
+                        </div>
                         
                         <div className="col-md-6"><label className={styles.label}>Carpeta</label>
                             <select className="form-select form-select-sm" name="folderId" value={filters.folderId} onChange={handleFilterChange}>

@@ -10,6 +10,7 @@ use ZipArchive;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth; 
+use Carbon\Carbon; // Importante para manejar fechas
 
 class FolderManagerController extends Controller
 {
@@ -34,12 +35,14 @@ class FolderManagerController extends Controller
                 });
             }
 
-            // 3. Filtro de Fechas (Fecha de creación de la carpeta)
+            // 3. Filtro de Fechas (CORREGIDO CON INCLUSIÓN DE HORAS)
             if ($dateFrom) {
-                $query->whereDate('created_at', '>=', $dateFrom);
+                $from = Carbon::parse($dateFrom)->startOfDay();
+                $query->where('created_at', '>=', $from);
             }
             if ($dateTo) {
-                $query->whereDate('created_at', '<=', $dateTo);
+                $to = Carbon::parse($dateTo)->endOfDay();
+                $query->where('created_at', '<=', $to);
             }
 
             // 4. consulta filtrada
@@ -75,8 +78,15 @@ class FolderManagerController extends Controller
             });
         }
 
-        if ($dateFrom) $query->whereDate('fecha_grabacion', '>=', $dateFrom);
-        if ($dateTo) $query->whereDate('fecha_grabacion', '<=', $dateTo);
+        // --- CORRECCIÓN DE FECHAS (INCLUSIVAS) ---
+        if ($dateFrom) {
+            $from = Carbon::parse($dateFrom)->startOfDay();
+            $query->where('fecha_grabacion', '>=', $from);
+        }
+        if ($dateTo) {
+            $to = Carbon::parse($dateTo)->endOfDay();
+            $query->where('fecha_grabacion', '<=', $to);
+        }
 
         $files = $query->latest('original_created_at')->paginate(50); 
 

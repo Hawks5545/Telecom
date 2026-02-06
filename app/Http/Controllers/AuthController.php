@@ -139,7 +139,8 @@ class AuthController extends Controller
             'password' => [
                 'required',
                 'confirmed',
-                'PasswordRules'::min(8)->letters()->mixedCase()->numbers()->symbols()
+                // CORRECCIÓN AQUÍ: Quitamos las comillas simples a PasswordRules
+                PasswordRules::min(8)->letters()->mixedCase()->numbers()->symbols()
             ],
         ]);
 

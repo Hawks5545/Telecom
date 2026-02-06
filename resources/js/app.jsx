@@ -20,6 +20,7 @@ import Auditoria from './components/Modules/Auditoria/Auditoria';
 import Reportes from './components/Modules/Reportes/Reportes';
 import UsersRoles from './components/Modules/UsersRoles/UsersRoles';
 import Configuration from './components/Modules/Configuration/Configuration';
+import Dashboard from './components/Modules/Dashboard/Dashboard'; // <--- [NUEVO] Importamos el Dashboard
 
 const LoginWrapper = () => {
     const navigate = useNavigate();
@@ -58,9 +59,9 @@ const MainApp = () => {
         return () => window.removeEventListener('storage', checkAuth);
     }, [isLoggedIn, navigate]);
 
-    // 2. CORRECCIÓN: Definimos las variables clave
+    // 2. Definimos las variables clave
     const userPerms = userData.permissions || [];
-    const displayRoleName = userData.role_display || userData.role || 'Sin Rol Asignado';
+    // const displayRoleName = userData.role_display || userData.role || 'Sin Rol Asignado'; // Ya no es necesario mostrarlo aquí, está en el Dashboard
 
     // 3. LOGOUT
     const handleLogout = async () => {
@@ -79,7 +80,6 @@ const MainApp = () => {
         } catch (error) {
             console.error("Error logout:", error);
         } finally {
-            
             localStorage.clear(); 
             window.location.href = '/login';
         }
@@ -109,22 +109,11 @@ const MainApp = () => {
             
             case 'dashboard':
             default: 
-                // Lógica especial: Si no tiene dashboard pero sí búsqueda, lo mandamos allá
+                // Lógica especial: Si no tiene permiso de Dashboard pero sí búsqueda, lo mandamos allá
                 if (!canSee('Dashboard') && canSee('Búsqueda de Grabaciones')) return <SearchRecordings />;
 
-                return (
-                    <div className="card shadow-sm p-4 border-0" style={{borderRadius: '15px'}}>
-                        <h1 style={{color: '#005461'}}>Bienvenido al Dashboard</h1>
-                        {/* AQUÍ USAMOS LA VARIABLE CORRECTA */}
-                        <p className="text-muted">
-                            Hola, {userData.name || 'Usuario'}. Tu rol es: <strong>{displayRoleName}</strong>
-                        </p>
-                        <div className="mt-4 p-5 text-center bg-light rounded-3">
-                            <i className="bi bi-bar-chart-line display-1 text-secondary opacity-25"></i>
-                            <p className="mt-3 text-secondary">Estadísticas de grabaciones próximamente...</p>
-                        </div>
-                    </div>        
-                );
+                // --- [ACTUALIZADO] Renderizamos el componente real ---
+                return <Dashboard />;
         }
     };
 

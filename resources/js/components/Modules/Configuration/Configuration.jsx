@@ -5,7 +5,6 @@ import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 const Configuration = () => {
     
     // --- ESTADOS ---
-    // Agregamos 'routes' como nueva sección y la ponemos por defecto si quieres
     const [activeSection, setActiveSection] = useState('routes'); 
     
     // Estados para Rutas (Storage Locations)
@@ -25,14 +24,24 @@ const Configuration = () => {
     });
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-    const [alertConfig, setAlertConfig] = useState({
-        isOpen: false, type: 'success', title: '', message: ''
+    // --- CONFIGURACIÓN DE ALERTA ---
+    const [alertConfig, setAlertConfig] = useState({ 
+        isOpen: false, 
+        type: 'info', 
+        title: '', 
+        message: '', 
+        onConfirm: null 
     });
+
+    const showAlert = (type, title, message, onConfirm = null) => {
+        setAlertConfig({ isOpen: true, type, title, message, onConfirm });
+    };
+
+    const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
     // --- CARGAR DATOS AL INICIAR ---
     useEffect(() => {
         fetchSettings(); 
-        // Solo cargamos rutas si estamos en esa sección para optimizar
         if (activeSection === 'routes') {
             fetchLocations();
         }
@@ -80,7 +89,8 @@ const Configuration = () => {
 
     // --- ACCIONES ---
     const handleAddLocation = async () => {
-        if (!newLocation.path) return showAlert('Campo Requerido', 'Por favor ingresa la ruta del servidor.', 'error');
+        if (!newLocation.path) return showAlert('error', 'Campo Requerido', 'Por favor ingresa la ruta del servidor.');
+        
         setIsLoadingPath(true);
         const token = localStorage.getItem('auth_token');
         try {
@@ -91,18 +101,27 @@ const Configuration = () => {
             });
             const data = await response.json();
             if (response.ok) {
-                showAlert('Ruta Agregada', 'La nueva ubicación se ha guardado correctamente.');
+                showAlert('success', 'Ruta Agregada', 'La nueva ubicación se ha guardado correctamente.');
                 setNewLocation({ path: '', name: '' });
                 fetchLocations(); 
             } else {
-                showAlert('Error', data.message || 'No se pudo guardar la ruta.', 'error');
+                showAlert('error', 'Error', data.message || 'No se pudo guardar la ruta.');
             }
-        } catch (error) { showAlert('Error de Conexión', 'No se pudo conectar con el servidor.', 'error'); }
+        } catch (error) { showAlert('error', 'Error de Conexión', 'No se pudo conectar con el servidor.'); }
         finally { setIsLoadingPath(false); }
     };
 
-    const handleDeleteLocation = async (id) => {
-        if (!confirm('¿Estás seguro de que deseas eliminar esta ruta? El sistema dejará de indexar archivos de aquí.')) return;
+    // --- LÓGICA DE ELIMINACIÓN CON ALERTA PERSONALIZADA ---
+    const handleDeleteLocation = (id) => {
+        showAlert(
+            'warning', 
+            'Eliminar Ruta', 
+            '¿Estás seguro de que deseas eliminar esta ruta? El sistema dejará de indexar archivos de aquí.',
+            () => executeDeleteLocation(id)
+        );
+    };
+
+    const executeDeleteLocation = async (id) => {
         const token = localStorage.getItem('auth_token');
         try {
             const response = await fetch(`http://127.0.0.1:8000/api/config/storage/${id}`, {
@@ -111,9 +130,12 @@ const Configuration = () => {
             });
             if (response.ok) {
                 fetchLocations();
-                showAlert('Eliminado', 'La ruta ha sido removida.');
-            } else { showAlert('Error', 'No se pudo eliminar la ruta.', 'error'); }
+                showAlert('success', 'Eliminado', 'La ruta ha sido removida.');
+            } else { 
+                showAlert('error', 'Error', 'No se pudo eliminar la ruta.'); 
+            }
         } catch (error) { console.error(error); }
+        finally { closeAlert(); }
     };
 
     const handleSaveSettings = async () => {
@@ -126,20 +148,15 @@ const Configuration = () => {
                 body: JSON.stringify(settings)
             });
             if (response.ok) {
-                showAlert('Configuración Guardada', 'Las preferencias se han actualizado correctamente.');
+                showAlert('success', 'Configuración Guardada', 'Las preferencias se han actualizado correctamente.');
             } else {
-                showAlert('Error', 'No se pudieron guardar los ajustes.', 'error');
+                showAlert('error', 'Error', 'No se pudieron guardar los ajustes.');
             }
-        } catch (error) { showAlert('Error', 'Fallo de conexión.', 'error'); }
+        } catch (error) { showAlert('error', 'Error', 'Fallo de conexión.'); }
         finally { setIsSavingSettings(false); }
     };
 
-    const showAlert = (title, message, type = 'success') => {
-        setAlertConfig({ isOpen: true, type, title, message });
-    };
-    const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
-
-    // --- NUEVA SECCIÓN: GESTIÓN DE RUTAS ---
+    // --- RENDERIZADO DE SECCIONES ---
     const renderRoutesConfig = () => (
         <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -161,7 +178,8 @@ const Configuration = () => {
                             value={newLocation.path} onChange={(e) => setNewLocation({...newLocation, path: e.target.value})} />
                     </div>
                     <div className="col-md-2">
-                        <button className="btn btn-success w-100" onClick={handleAddLocation} disabled={isLoadingPath}>
+                        {/* BOTÓN CON CLASE PERSONALIZADA CORPORATIVA */}
+                        <button className={styles.btnAdd} onClick={handleAddLocation} disabled={isLoadingPath}>
                             {isLoadingPath ? '...' : 'Agregar'}
                         </button>
                     </div>
@@ -186,7 +204,8 @@ const Configuration = () => {
                 <div className="card-body p-0">
                     <div className="table-responsive">
                         <table className="table table-hover mb-0 align-middle">
-                            <thead className="bg-light">
+                            {/* AQUI APLICAMOS LA CLASE TABLEHEADER DEL CSS */}
+                            <thead className={styles.tableHeader}>
                                 <tr>
                                     <th className="ps-4 py-3">Nombre</th>
                                     <th>Ruta</th>
@@ -217,7 +236,6 @@ const Configuration = () => {
         </div>
     );
 
-    // --- SECCIÓN: ALMACENAMIENTO (SOLO PREFERENCIAS) ---
     const renderStorageConfig = () => (
         <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -245,7 +263,6 @@ const Configuration = () => {
         </div>
     );
 
-    // --- SECCIÓN: SINCRONIZACIÓN ---
     const renderSyncConfig = () => (
         <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -291,7 +308,6 @@ const Configuration = () => {
         </div>
     );
 
-    // --- SECCIÓN: ALERTAS ---
     const renderNotificationsConfig = () => (
         <div className={styles.sectionContainer}>
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -335,10 +351,9 @@ const Configuration = () => {
         </div>
     );
 
-    // --- RENDERIZADO PRINCIPAL ---
     const renderContent = () => {
         switch (activeSection) {
-            case 'routes': return renderRoutesConfig(); // <--- NUEVA SECCIÓN
+            case 'routes': return renderRoutesConfig();
             case 'storage': return renderStorageConfig();
             case 'sync': return renderSyncConfig();
             case 'notifications': return renderNotificationsConfig();
@@ -348,12 +363,19 @@ const Configuration = () => {
 
     return (
         <div className={`container-fluid p-0 ${styles.fadeIn}`}>
-            <CustomAlert isOpen={alertConfig.isOpen} type={alertConfig.type} title={alertConfig.title} message={alertConfig.message} onClose={closeAlert} />
+            <CustomAlert 
+                isOpen={alertConfig.isOpen} 
+                type={alertConfig.type} 
+                title={alertConfig.title} 
+                message={alertConfig.message} 
+                onClose={closeAlert} 
+                onConfirm={alertConfig.onConfirm} 
+            />
+            
             <h2 className={styles.pageTitle}><i className="bi bi-gear-wide-connected me-2"></i> Configuración</h2>
             <div className={styles.layoutWrapper}>
                 <aside className={styles.sidebar}>
                     <nav className={styles.nav}>
-                        {/* BOTÓN NUEVO: RUTAS */}
                         <button className={`${styles.navItem} ${activeSection === 'routes' ? styles.navActive : ''}`} onClick={() => setActiveSection('routes')}>
                             <i className="bi bi-signpost-split me-2"></i> Rutas
                         </button>

@@ -7,7 +7,7 @@
     align-items: center;
     justify-content: center;
     background: linear-gradient(rgba(0, 84, 97, 0.7), rgba(0, 50, 60, 0.8)),
-                url('/images/fondo/Fondo_Login.jpg') center/cover;
+                url('/images/fondo/Fondo_Login.webp') center/cover;
 }
 
 .containerCard {

@@ -10,6 +10,7 @@ use ZipArchive;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth; 
+use Carbon\Carbon; // Importante para manejar las fechas
 
 class SearchController extends Controller
 {
@@ -34,12 +35,28 @@ class SearchController extends Controller
         if ($request->filled('filename')) {
             $query->where('filename', 'like', '%' . $request->filename . '%');
         }
-        if ($request->filled('dateFrom')) {
-            $query->whereDate('fecha_grabacion', '>=', $request->dateFrom);
+
+        // --- CORRECCIÓN DE FECHAS (INCLUSIVAS) ---
+        if ($request->filled('dateFrom') && $request->filled('dateTo')) {
+            // Caso: Rango completo (Desde X hasta Y)
+            $from = Carbon::parse($request->dateFrom)->startOfDay(); // 2025-09-05 00:00:00
+            $to = Carbon::parse($request->dateTo)->endOfDay();       // 2025-09-07 23:59:59
+            
+            $query->whereBetween('fecha_grabacion', [$from, $to]);
+
+        } else {
+            // Caso: Solo fecha de inicio
+            if ($request->filled('dateFrom')) {
+                $from = Carbon::parse($request->dateFrom)->startOfDay();
+                $query->where('fecha_grabacion', '>=', $from);
+            }
+            // Caso: Solo fecha final
+            if ($request->filled('dateTo')) {
+                $to = Carbon::parse($request->dateTo)->endOfDay();
+                $query->where('fecha_grabacion', '<=', $to);
+            }
         }
-        if ($request->filled('dateTo')) {
-            $query->whereDate('fecha_grabacion', '<=', $request->dateTo);
-        }
+
         if ($request->filled('folderId')) {
             $query->where('storage_location_id', $request->folderId);
         }

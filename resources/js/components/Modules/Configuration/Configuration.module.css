@@ -1,5 +1,3 @@
-/* resources/js/components/Modules/Configuration/Configuration.module.css */
-
 .sectionContainer {
     animation: fadeIn 0.4s ease-out;
     padding-bottom: 1rem;
@@ -92,7 +90,20 @@
     margin: 0;
 }
 
-/* --- BOTÓN GUARDAR --- */
+/* --- ESTILO DE LA TABLA (ENCABEZADO VERDE) --- */
+.tableHeader {
+    background-color: #005461;
+    color: #ffffff;
+}
+
+.tableHeader th {
+    background-color: #005461; /* Asegura que el color de fondo se aplique sobre el estilo base de Bootstrap */
+    color: #ffffff;
+    font-weight: 600;
+    border-bottom: none;
+}
+
+/* --- BOTÓN GUARDAR (GRADIENTE) --- */
 .btnSave {
     background: #20c997; 
     background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
@@ -117,6 +128,37 @@
 
 .btnSave:active {
     transform: translateY(0);
+}
+
+/* --- BOTÓN AGREGAR (COLOR CORPORATIVO SÓLIDO) --- */
+.btnAdd {
+    background-color: #005461; /* Mismo color que el Sidebar */
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px; 
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    width: 100%; /* Ocupa todo el ancho de su columna */
+    box-shadow: 0 2px 5px rgba(0, 84, 97, 0.2);
+}
+
+.btnAdd:hover {
+    background-color: #003d47; /* Un poco más oscuro */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 84, 97, 0.35);
+}
+
+.btnAdd:active {
+    transform: translateY(0);
+}
+
+.btnAdd:disabled {
+    background-color: #a0b4b6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 /* --- RESPONSIVE --- */

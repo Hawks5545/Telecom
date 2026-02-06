@@ -23,6 +23,9 @@ const FolderManager = () => {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     
+    // Estado para la fecha máxima (HOY)
+    const [maxDate, setMaxDate] = useState('');
+
     // Navegación
     const [breadcrumbs, setBreadcrumbs] = useState([{ id: 0, name: 'Inicio' }]);
 
@@ -40,6 +43,12 @@ const FolderManager = () => {
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
     };
+
+    // --- INICIO ---
+    useEffect(() => {
+        // Establecer la fecha máxima como HOY al cargar el componente
+        setMaxDate(new Date().toISOString().split('T')[0]);
+    }, []);
 
     // --- 1. CARGA DE DATOS ---
     const fetchItems = useCallback(async (page = 1) => {
@@ -132,14 +141,12 @@ const FolderManager = () => {
             : `http://127.0.0.1:8000/api/folder-manager/download/${item.id}`;
 
         try {
-            // --- [ACTUALIZADO] MENSAJE DE ESPERA MEJORADO ---
             const loadingTitle = isFolder ? 'Comprimiendo Archivos...' : 'Iniciando descarga...';
             const loadingMsg = isFolder 
                 ? 'Estamos creando tu archivo ZIP. \n\nPara carpetas grandes (más de 1GB), esto puede tardar varios minutos mientras el servidor comprime los archivos. \n\n¡Por favor no cierres esta ventana!' 
                 : 'Tu descarga comenzará en breve...';
 
             showAlert('loading', loadingTitle, loadingMsg);
-            // ------------------------------------------------
 
             const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
 
@@ -174,11 +181,23 @@ const FolderManager = () => {
                         </div>
                         <div className="col-md-3">
                             <label className={styles.label}>Desde</label>
-                            <input type="date" className="form-control form-control-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                            <input 
+                                type="date" 
+                                className="form-control form-control-sm" 
+                                value={dateFrom} 
+                                max={maxDate} // BLOQUEO FUTURO
+                                onChange={(e) => setDateFrom(e.target.value)} 
+                            />
                         </div>
                         <div className="col-md-3">
                             <label className={styles.label}>Hasta</label>
-                            <input type="date" className="form-control form-control-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                            <input 
+                                type="date" 
+                                className="form-control form-control-sm" 
+                                value={dateTo} 
+                                max={maxDate} // BLOQUEO FUTURO
+                                onChange={(e) => setDateTo(e.target.value)} 
+                            />
                         </div>
                         <div className="col-md-2 d-flex align-items-end">
                              <div className="d-flex w-100 gap-2">

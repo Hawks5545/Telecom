@@ -19,14 +19,20 @@ const Auditoria = () => {
         dateFrom: '', dateTo: '', userId: '', action: ''
     });
 
+    // Estado para la fecha máxima (HOY)
+    const [maxDate, setMaxDate] = useState('');
+
     // Alertas
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, type: 'info', title: '', message: '' });
     const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
     // --- CARGA DE DATOS ---
     
-    // 1. Cargar lista de usuarios para el select
+    // 1. Cargar lista de usuarios para el select y establecer fecha máxima
     useEffect(() => {
+        // Establecer fecha de hoy como límite
+        setMaxDate(new Date().toISOString().split('T')[0]);
+
         const fetchUsers = async () => {
             try {
                 const token = localStorage.getItem('auth_token');
@@ -72,7 +78,7 @@ const Auditoria = () => {
     // Carga inicial y recarga al cambiar página
     useEffect(() => {
         fetchLogs(1);
-    }, []); // Carga inicial solo una vez, los filtros se aplican con el botón "Buscar"
+    }, []); 
 
     // --- MANEJADORES ---
     const handleFilterChange = (e) => {
@@ -85,7 +91,6 @@ const Auditoria = () => {
 
     const handleClear = () => {
         setFilters({ dateFrom: '', dateTo: '', userId: '', action: '' });
-        // Usamos un timeout pequeño para asegurar que el estado se limpie antes de buscar
         setTimeout(() => fetchLogs(1), 50);
     };
 
@@ -122,11 +127,25 @@ const Auditoria = () => {
                     <form className="row g-3 align-items-end" onSubmit={(e) => e.preventDefault()}>
                         <div className="col-md-3">
                             <label className={styles.label}>Fecha desde</label>
-                            <input type="date" className="form-control" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} />
+                            <input 
+                                type="date" 
+                                className="form-control" 
+                                name="dateFrom" 
+                                value={filters.dateFrom} 
+                                max={maxDate} // BLOQUEO DE FECHAS FUTURAS
+                                onChange={handleFilterChange} 
+                            />
                         </div>
                         <div className="col-md-3">
                             <label className={styles.label}>Fecha hasta</label>
-                            <input type="date" className="form-control" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} />
+                            <input 
+                                type="date" 
+                                className="form-control" 
+                                name="dateTo" 
+                                value={filters.dateTo} 
+                                max={maxDate} // BLOQUEO DE FECHAS FUTURAS
+                                onChange={handleFilterChange} 
+                            />
                         </div>
                         <div className="col-md-3">
                             <label className={styles.label}>Usuario</label>

@@ -30,6 +30,7 @@ class Recording extends Model
         'original_created_at' => 'datetime',
     ];
 
+    // Relación: Una grabación pertenece a una ubicación de almacenamiento
     public function storageLocation()
     {
         return $this->belongsTo(StorageLocation::class, 'storage_location_id');

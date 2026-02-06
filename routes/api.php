@@ -10,6 +10,8 @@ use App\Http\Controllers\FolderManagerController;
 use App\Http\Controllers\ConfigurationController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\DashboardController;
 
 // --- RUTAS PÚBLICAS ---
 Route::post('/login', [AuthController::class, 'login']);
@@ -22,14 +24,17 @@ Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    //Dasboard
+    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
+
     //Indexacion
     Route::post('/indexing/scan', [\App\Http\Controllers\IndexingController::class, 'scanFolder']);
     Route::post('/indexing/run', [\App\Http\Controllers\IndexingController::class, 'runIndexing']);
 
-    // --- Módulo de Búsqueda Avanzada ---
-Route::get('/search/folders', [SearchController::class, 'getFolders']); 
-Route::get('/search/results', [SearchController::class, 'search']); 
-Route::post('/search/download-zip', [SearchController::class, 'downloadZip']); 
+    // Búsqueda de Grabaciones 
+    Route::get('/search/folders', [SearchController::class, 'getFolders']); 
+    Route::get('/search/results', [SearchController::class, 'search']); 
+    Route::post('/search/download-zip', [SearchController::class, 'downloadZip']); 
 
     //Gestor de carpetas
     Route::get('/folder-manager/items', [App\Http\Controllers\FolderManagerController::class, 'getItems']);
@@ -39,6 +44,11 @@ Route::post('/search/download-zip', [SearchController::class, 'downloadZip']);
     //Auditoria
     Route::get('/audit/logs', [AuditController::class, 'index']);
     Route::get('/audit/users', [AuditController::class, 'getUsers']);
+
+    //Reportes
+    Route::get('/reports/users', [ReportController::class, 'getUsers']);
+    Route::get('/reports/data', [ReportController::class, 'getData']);
+    Route::get('/reports/pdf', [ReportController::class, 'downloadPdf']);
 
     // Usuarios
     Route::get('/users', [UserController::class, 'index']);
@@ -52,7 +62,6 @@ Route::post('/search/download-zip', [SearchController::class, 'downloadZip']);
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
     Route::put('/roles/{id}', [RoleController::class, 'update']);
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
-
 
     //Confugiracion
     Route::get('/config/storage', [App\Http\Controllers\ConfigurationController::class, 'getStorageLocations']);
