@@ -6,11 +6,20 @@ export default defineConfig({
     plugins: [
         laravel({
             input: [
-                'resources/css/app.scss', // Se cambia  css por scss para usar Bootstrap
-                'resources/js/app.jsx',   // Se cambia .js por .jsx para React
+                'resources/css/app.scss', // Asegúrate de que esto coincida con lo que tenías
+                'resources/js/app.jsx'
             ],
             refresh: true,
         }),
         react(),
     ],
+    // --- AGREGA ESTO PARA SILENCIAR LAS ADVERTENCIAS ---
+    css: {
+        preprocessorOptions: {
+            scss: {
+                // Borramos 'mixed-decls' de aquí
+                silenceDeprecations: ['import', 'global-builtin', 'color-functions', 'if-function'],
+            },
+        },
+    },
 });

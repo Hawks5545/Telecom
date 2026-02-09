@@ -16,36 +16,42 @@ use App\Http\Controllers\DashboardController;
 // --- RUTAS PÚBLICAS ---
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLink']);
-
-// RECTIFICACIÓN: Esta es la ruta que llama tu componente ResetPassword.jsx
 Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 
 // --- RUTAS PROTEGIDAS ---
 Route::middleware('auth:sanctum')->group(function () {
+    
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
 
-    //Dasboard
+    // Dashboard
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
-    //Indexacion
-    Route::post('/indexing/scan', [\App\Http\Controllers\IndexingController::class, 'scanFolder']);
-    Route::post('/indexing/run', [\App\Http\Controllers\IndexingController::class, 'runIndexing']);
+    // Indexación
+    Route::post('/indexing/scan', [IndexingController::class, 'scanFolder']);
+    Route::post('/indexing/run', [IndexingController::class, 'runIndexing']);
 
     // Búsqueda de Grabaciones 
     Route::get('/search/folders', [SearchController::class, 'getFolders']); 
     Route::get('/search/results', [SearchController::class, 'search']); 
+    
+    // --- ESTA ES LA LÍNEA QUE FALTABA PARA QUE FUNCIONE LA DESCARGA INDIVIDUAL ---
+    Route::get('/search/download/{id}', [SearchController::class, 'downloadItem']);
+    
     Route::post('/search/download-zip', [SearchController::class, 'downloadZip']); 
 
-    //Gestor de carpetas
-    Route::get('/folder-manager/items', [App\Http\Controllers\FolderManagerController::class, 'getItems']);
-    Route::get('/folder-manager/download/{id}', [App\Http\Controllers\FolderManagerController::class, 'downloadItem']);
+    // Gestor de carpetas
+    Route::get('/folder-manager/items', [FolderManagerController::class, 'getItems']);
+    Route::get('/folder-manager/download/{id}', [FolderManagerController::class, 'downloadItem']);
     Route::get('/folder-manager/download-folder/{id}', [FolderManagerController::class, 'downloadFolder']);
 
-    //Auditoria
+    // Auditoría
     Route::get('/audit/logs', [AuditController::class, 'index']);
     Route::get('/audit/users', [AuditController::class, 'getUsers']);
 
-    //Reportes
+    // Reportes
     Route::get('/reports/users', [ReportController::class, 'getUsers']);
     Route::get('/reports/data', [ReportController::class, 'getData']);
     Route::get('/reports/pdf', [ReportController::class, 'downloadPdf']);
@@ -59,19 +65,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // Roles
     Route::get('/roles', [RoleController::class, 'index']);
     Route::post('/roles', [RoleController::class, 'store']);
-    Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
     Route::put('/roles/{id}', [RoleController::class, 'update']);
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
 
-    //Confugiracion
-    Route::get('/config/storage', [App\Http\Controllers\ConfigurationController::class, 'getStorageLocations']);
-    Route::post('/config/storage', [App\Http\Controllers\ConfigurationController::class, 'addStorageLocation']);
-    Route::delete('/config/storage/{id}', [App\Http\Controllers\ConfigurationController::class, 'deleteStorageLocation']);
-    Route::put('/config/storage/{id}/toggle', [App\Http\Controllers\ConfigurationController::class, 'toggleStorageLocation']);
-    Route::get('/config/settings', [App\Http\Controllers\ConfigurationController::class, 'getSettings']);
-    Route::post('/config/settings', [App\Http\Controllers\ConfigurationController::class, 'saveSettings']);
-
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
+    // Configuración
+    Route::get('/config/storage', [ConfigurationController::class, 'getStorageLocations']);
+    Route::post('/config/storage', [ConfigurationController::class, 'addStorageLocation']);
+    Route::delete('/config/storage/{id}', [ConfigurationController::class, 'deleteStorageLocation']);
+    Route::put('/config/storage/{id}/toggle', [ConfigurationController::class, 'toggleStorageLocation']);
+    Route::get('/config/settings', [ConfigurationController::class, 'getSettings']);
+    Route::post('/config/settings', [ConfigurationController::class, 'saveSettings']);
 });

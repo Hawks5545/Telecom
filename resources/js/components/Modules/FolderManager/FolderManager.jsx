@@ -136,9 +136,13 @@ const FolderManager = () => {
     const executeDownload = async (item) => {
         const token = localStorage.getItem('auth_token');
         const isFolder = item.type === 'folder';
+        
+        // --- AQUÍ ESTÁ EL FIX ANTI-CACHÉ ---
+        const timestamp = new Date().getTime();
+
         const url = isFolder 
-            ? `http://127.0.0.1:8000/api/folder-manager/download-folder/${item.id}`
-            : `http://127.0.0.1:8000/api/folder-manager/download/${item.id}`;
+            ? `http://127.0.0.1:8000/api/folder-manager/download-folder/${item.id}?t=${timestamp}`
+            : `http://127.0.0.1:8000/api/folder-manager/download/${item.id}?t=${timestamp}`;
 
         try {
             const loadingTitle = isFolder ? 'Comprimiendo Archivos...' : 'Iniciando descarga...';
@@ -241,18 +245,14 @@ const FolderManager = () => {
                                         <tr key={item.id}>
                                             <td className="ps-4">
                                                 <div className="d-flex align-items-center">
-                                                    {/* ICONO */}
                                                     <div className="me-3">
                                                         {item.type === 'folder' 
                                                             ? <i className={`bi bi-hdd-fill ${styles.folderIcon} text-primary`}></i> 
                                                             : <i className={`bi bi-file-earmark-music-fill ${styles.fileIcon} text-success`}></i>
                                                         }
                                                     </div>
-                                                    
-                                                    {/* NOMBRE Y RUTA */}
                                                     <div className="d-flex flex-column">
                                                         <span className="fw-bold text-secondary">{item.name}</span>
-                                                        {/* AQUI MOSTRAMOS LA RUTA (PATH) */}
                                                         {item.path && (
                                                             <small className={styles.itemPath} title={item.path}>
                                                                 {item.path}

@@ -146,14 +146,28 @@ const SearchRecordings = () => {
         const token = localStorage.getItem('auth_token');
         try {
             showAlert('loading', 'Descargando...', `Peso: ${formatBytes(item.size)}`);
-            const res = await fetch(`http://127.0.0.1:8000/api/folder-manager/download/${item.id}`, { headers: { 'Authorization': `Bearer ${token}` }});
+            
+            // --- AQUÍ ESTÁ EL FIX ANTI-CACHÉ ---
+            const timestamp = new Date().getTime(); // Genera un número único
+            const url = `http://127.0.0.1:8000/api/search/download/${item.id}?t=${timestamp}`;
+
+            const res = await fetch(url, { 
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
             if (res.ok) {
                 const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = item.filename;
-                document.body.appendChild(a); a.click(); a.remove(); closeAlert();
-            } else { showAlert('error', 'Error', 'Archivo no encontrado.'); }
-        } catch (e) { showAlert('error', 'Error', 'Fallo de conexión.'); }
+                const urlObj = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = urlObj; a.download = item.filename;
+                document.body.appendChild(a); a.click(); a.remove(); 
+                window.URL.revokeObjectURL(urlObj); // Buena práctica: limpiar memoria
+                closeAlert();
+            } else { 
+                showAlert('error', 'Error', 'Archivo no encontrado.'); 
+            }
+        } catch (e) { 
+            showAlert('error', 'Error', 'Fallo de conexión.'); 
+        }
     };
 
     const handleMassiveDownload = () => {
@@ -174,6 +188,7 @@ const SearchRecordings = () => {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href = url; a.download = `seleccion_${Date.now()}.zip`;
                 document.body.appendChild(a); a.click(); a.remove(); 
+                window.URL.revokeObjectURL(url);
                 
                 // Limpiar selección tras descarga exitosa
                 setSelectedItems([]);
