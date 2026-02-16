@@ -62,7 +62,7 @@ const SearchRecordings = () => {
     const fetchFolders = async () => {
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch('http://127.0.0.1:8000/api/search/folders', { headers: { 'Authorization': `Bearer ${token}` }});
+            const res = await fetch('/api/search/folders', { headers: { 'Authorization': `Bearer ${token}` }});
             if (res.ok) setFolders(await res.json());
         } catch (error) { console.error(error); }
     };
@@ -73,7 +73,7 @@ const SearchRecordings = () => {
         const params = new URLSearchParams({ page, ...filters });
 
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/search/results?${params}`, { headers: { 'Authorization': `Bearer ${token}` }});
+            const res = await fetch(`/api/search/results?${params}`, { headers: { 'Authorization': `Bearer ${token}` }});
             if (res.ok) {
                 const data = await res.json();
                 setAllData(data.data);
@@ -149,7 +149,7 @@ const SearchRecordings = () => {
             
             // --- AQUÍ ESTÁ EL FIX ANTI-CACHÉ ---
             const timestamp = new Date().getTime(); // Genera un número único
-            const url = `http://127.0.0.1:8000/api/search/download/${item.id}?t=${timestamp}`;
+            const url = `/api/search/download/${item.id}?t=${timestamp}`;
 
             const res = await fetch(url, { 
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -178,7 +178,7 @@ const SearchRecordings = () => {
         const token = localStorage.getItem('auth_token');
         try {
             showAlert('loading', 'Comprimiendo...', `Procesando ${totalSelectedSize}... esto puede tardar.`);
-            const res = await fetch('http://127.0.0.1:8000/api/search/download-zip', {
+            const res = await fetch('/api/search/download-zip', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ ids: selectedItems })

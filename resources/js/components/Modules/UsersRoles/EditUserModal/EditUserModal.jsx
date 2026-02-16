@@ -65,7 +65,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     const fetchRoles = async () => {
         const token = localStorage.getItem('auth_token');
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/roles', {
+            const response = await fetch('/api/roles', {
                  headers: { 'Authorization': `Bearer ${token}` }
             });
             if(response.ok) setRoles(await response.json());
@@ -91,7 +91,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
         const fullNameCombined = `${formData.nombre} ${formData.apellido}`.trim();
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/users/${user.id}`, {
+            const response = await fetch(`/api/users/${user.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
