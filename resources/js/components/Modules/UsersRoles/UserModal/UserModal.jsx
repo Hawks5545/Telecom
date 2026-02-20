@@ -24,7 +24,7 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
         const fetchRoles = async () => {
             try {
                 const token = localStorage.getItem('auth_token');
-                const response = await fetch('http://127.0.0.1:8000/api/roles', {
+                const response = await fetch('/api/roles', {
                     headers: { 
                         'Authorization': `Bearer ${token}`,
                         'Accept': 'application/json'
@@ -71,7 +71,7 @@ const UserModal = ({ isOpen, onClose, onSuccess }) => {
         try {
             const token = localStorage.getItem('auth_token');
 
-            const response = await fetch('http://127.0.0.1:8000/api/users', {
+            const response = await fetch('/api/users', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

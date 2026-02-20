@@ -61,7 +61,7 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
         const token = localStorage.getItem('auth_token');
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/roles/${role.id}`, {
+            const response = await fetch(`/api/roles/${role.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

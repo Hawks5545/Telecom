@@ -72,7 +72,7 @@ const FolderManager = () => {
         });
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/folder-manager/items?${params}`, {
+            const response = await fetch(`/api/folder-manager/items?${params}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             
@@ -251,8 +251,8 @@ const FolderManager = () => {
         const isFolder = item.type === 'folder';
         const timestamp = new Date().getTime();
         const url = isFolder 
-            ? `http://127.0.0.1:8000/api/folder-manager/download-folder/${item.id}?t=${timestamp}`
-            : `http://127.0.0.1:8000/api/folder-manager/download/${item.id}?t=${timestamp}`;
+            ? `/api/folder-manager/download-folder/${item.id}?t=${timestamp}`
+            : `/api/folder-manager/download/${item.id}?t=${timestamp}`;
 
         try {
             showAlert('loading', isFolder ? 'Comprimiendo...' : 'Descargando...', 'Por favor espera...');

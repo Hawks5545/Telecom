@@ -30,7 +30,7 @@ const Auditoria = () => {
         const fetchUsers = async () => {
             try {
                 const token = localStorage.getItem('auth_token');
-                const res = await fetch('http://127.0.0.1:8000/api/audit/users', {
+                const res = await fetch('/api/audit/users', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) setUsersList(await res.json());
@@ -48,7 +48,7 @@ const Auditoria = () => {
         const params = new URLSearchParams({ page, ...activeFilters });
 
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/audit/logs?${params}`, {
+            const res = await fetch(`/api/audit/logs?${params}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             

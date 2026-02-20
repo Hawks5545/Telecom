@@ -32,7 +32,7 @@ const Reportes = () => {
         const fetchUsers = async () => {
             try {
                 const token = localStorage.getItem('auth_token');
-                const res = await fetch('http://127.0.0.1:8000/api/reports/users', {
+                const res = await fetch('/api/reports/users', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) setUsersList(await res.json());
@@ -48,7 +48,7 @@ const Reportes = () => {
         const params = new URLSearchParams(filters);
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/reports/data?${params}`, {
+            const response = await fetch(`/api/reports/data?${params}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -91,7 +91,7 @@ const Reportes = () => {
         showAlert('loading', 'Generando PDF', 'Por favor espera...');
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/reports/pdf?${params}`, {
+            const response = await fetch(`/api/reports/pdf?${params}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 

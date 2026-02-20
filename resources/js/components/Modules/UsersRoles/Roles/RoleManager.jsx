@@ -31,7 +31,7 @@ const RoleManager = () => {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch('http://127.0.0.1:8000/api/roles', {
+            const response = await fetch('/api/roles', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -83,7 +83,7 @@ const RoleManager = () => {
     const executeDelete = async (roleId) => {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch(`http://127.0.0.1:8000/api/roles/${roleId}`, {
+            const response = await fetch(`/api/roles/${roleId}`, {
                 method: 'DELETE',
                 headers: { 
                     'Authorization': `Bearer ${token}`,

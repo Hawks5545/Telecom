@@ -64,7 +64,7 @@ const Configuration = () => {
         if (locationSearch) params.append('search', locationSearch);
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/config/storage?${params.toString()}`, {
+            const response = await fetch(`/api/config/storage?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -77,7 +77,7 @@ const Configuration = () => {
     const fetchSettings = async () => {
         const token = localStorage.getItem('auth_token');
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/config/settings', {
+            const response = await fetch('/api/config/settings', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -94,7 +94,7 @@ const Configuration = () => {
         setIsLoadingPath(true);
         const token = localStorage.getItem('auth_token');
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/config/storage', {
+            const response = await fetch('/api/config/storage', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(newLocation)
@@ -124,7 +124,7 @@ const Configuration = () => {
     const executeDeleteLocation = async (id) => {
         const token = localStorage.getItem('auth_token');
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/config/storage/${id}`, {
+            const response = await fetch(`/api/config/storage/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -142,7 +142,7 @@ const Configuration = () => {
         setIsSavingSettings(true);
         const token = localStorage.getItem('auth_token');
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/config/settings', {
+            const response = await fetch('/api/config/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(settings)

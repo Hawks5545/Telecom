@@ -37,7 +37,7 @@ const UserManager = () => {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch('http://127.0.0.1:8000/api/users', {
+            const response = await fetch('/api/users', {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -160,7 +160,7 @@ const UserManager = () => {
     const executeDelete = async (userId) => {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch(`http://127.0.0.1:8000/api/users/${userId}`, {
+            const response = await fetch(`/api/users/${userId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
