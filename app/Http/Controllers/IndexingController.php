@@ -12,44 +12,54 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Illuminate\Database\QueryException; 
 use Illuminate\Support\Facades\Auth; 
+use Illuminate\Support\Str;
 
 class IndexingController extends Controller
 {
+    // --- NORMALIZACIÓN DE RUTAS (Mejorado y más seguro) ---
     private function normalizePath($inputPath)
     {
-        // 1. Quitar comillas y espacios extremos
+        // Limpieza básica
         $path = trim($inputPath, " \t\n\r\0\x0B\"'");
         
-        // 2. Unificar separadores a barra normal (/)
+        // Convertir todo a slash normal (/) para consistencia
         $path = str_replace('\\', '/', $path);
 
-        // 3. Quitar barra final si existe (para evitar duplicados por "carpeta/" vs "carpeta")
+        // Eliminar slash final
         $path = rtrim($path, '/');
 
-        // 4. Resolver rutas relativas si no tienen dos puntos (C:) o barra inicial (/)
-        if (!str_contains($path, ':') && !str_starts_with($path, '/')) {
-            return public_path($path); // Ojo con esto si usas rutas absolutas de Windows
+        // Seguridad: Resolver ruta real para evitar ".." (Path Traversal)
+        // Solo si la carpeta existe físicamente
+        if (file_exists($path)) {
+            $realPath = realpath($path);
+            if ($realPath) {
+                return str_replace('\\', '/', $realPath);
+            }
         }
+
         return $path;
     }
 
+    // --- 1. ESCANEAR (Preview) ---
     public function scanFolder(Request $request)
     {
         try {
             $path = $this->normalizePath($request->input('path'));
 
             if (!is_dir($path)) {
-                return response()->json(['message' => "La carpeta no existe o no es accesible: {$path}"], 404);
+                return response()->json(['message' => "La carpeta no existe o no es accesible."], 404);
             }
 
             $fileCount = 0;
             $totalSize = 0;
 
+            // Iterador optimizado de PHP (muy rápido)
             $dirIterator = new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS);
             $iterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::LEAVES_ONLY);
 
             foreach ($iterator as $file) {
-                if ($file->isFile() && in_array(strtolower($file->getExtension()), ['mp3', 'wav', 'ogg', 'aac', 'wma'])) {
+                // Filtro rápido de extensión
+                if ($file->isFile() && preg_match('/\.(mp3|wav|ogg|aac|wma)$/i', $file->getFilename())) {
                     $fileCount++;
                     $totalSize += $file->getSize();
                 }
@@ -69,9 +79,10 @@ class IndexingController extends Controller
         }
     }
 
+    // --- 2. EJECUTAR INDEXACIÓN (La Lógica Maestra) ---
     public function runIndexing(Request $request)
     {
-        @set_time_limit(0); 
+        @set_time_limit(0); // Evitar timeout en cargas masivas
 
         try {
             $rootPath = $this->normalizePath($request->input('path'));
@@ -81,64 +92,42 @@ class IndexingController extends Controller
                 return response()->json(['message' => 'La carpeta no existe físicamente.'], 404);
             }
 
-            // 1. GESTIÓN SEGURA DE LA UBICACIÓN (CARPETA)
+            // A. PREPARAR DESTINOS (OPTIMIZACIÓN)
             
-            // Intenta buscarla exactamente como la normalizamos
-            $location = StorageLocation::where('path', $rootPath)->first();
+            // 1. Cargamos Campañas "Madre" en memoria para comparación rápida
+            // Esto evita hacer miles de consultas a la BD dentro del bucle.
+            // Formato: ['claro' => 5, 'etb' => 8, 'movistar' => 2] (Nombre en minúscula => ID)
+            $campaigns = StorageLocation::where('is_active', true)
+                ->pluck('id', 'name')
+                ->mapWithKeys(fn($id, $name) => [strtolower($name) => $id])
+                ->toArray();
 
-            // Si no la encuentra, intenta buscarla con/sin barra final por si acaso
-            if (!$location) {
-                $location = StorageLocation::where('path', $rootPath . '/')->first();
-            }
+            // 2. Gestionar la "Bandeja de Entrada" (Importación Física)
+            // Si el archivo no coincide con ninguna campaña, caerá aquí.
+            $inboxLocation = StorageLocation::firstOrCreate(
+                ['path' => $rootPath],
+                [
+                    'name' => 'Importación ' . date('Y-m-d H:i'),
+                    'is_active' => true
+                ]
+            );
 
-            // Si definitivamente no existe en memoria, intenta crearla
-            if (!$location) {
-                try {
-                    $location = StorageLocation::create([
-                        'path' => $rootPath,
-                        'name' => 'Importación ' . date('Y-m-d H:i'),
-                        'is_active' => true
-                    ]);
-                } catch (QueryException $e) {
-                    if ($e->errorInfo[1] == 1062) {
-                        $location = StorageLocation::where('path', $rootPath)->first();
-                        if (!$location) {
-                            $pathWindows = str_replace('/', '\\', $rootPath);
-                            $location = StorageLocation::where('path', $pathWindows)->first();
-                        }
-                    } else {
-                        throw $e; 
-                    }
-                }
-            }
-
-            //  PROTECCIÓN CRÍTICA
-            if (!$location) {
-                return response()->json([
-                    'message' => 'Error crítico: La ubicación existe en base de datos pero el sistema no pudo recuperar su ID.',
-                    'debug_path' => $rootPath
-                ], 500);
-            }
-
+            // B. PROCESAMIENTO DE ARCHIVOS
             $processedCount = 0;
             $skippedCount = 0;
+            $autoClassifiedCount = 0; // Contador para saber cuántos se movieron solos
 
             $dirIterator = new RecursiveDirectoryIterator($rootPath, RecursiveDirectoryIterator::SKIP_DOTS);
             $iterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::LEAVES_ONLY);
 
             foreach ($iterator as $file) {
-                if ($file->isFile() && in_array(strtolower($file->getExtension()), ['mp3', 'wav', 'ogg', 'aac', 'wma'])) {
+                // Validación rápida de extensión usando Regex (más rápido que in_array)
+                if ($file->isFile() && preg_match('/\.(mp3|wav|ogg|aac|wma)$/i', $file->getFilename())) {
                     
                     $filename = $file->getFilename();
                     $fullPath = $this->normalizePath($file->getPathname());
 
-                    $parentDir = $this->normalizePath($file->getPath());
-                    $relativePath = str_replace($rootPath, '', $parentDir);
-                    $relativePath = trim($relativePath, '/');
-
-                    $fileTimestamp = $file->getMTime(); 
-                    $originalDate = Carbon::createFromTimestamp($fileTimestamp);
-
+                    // Verificar duplicados si la opción está activa
                     if ($options['skipDuplicates'] ?? true) {
                         if (Recording::where('full_path', $fullPath)->exists()) {
                             $skippedCount++;
@@ -146,27 +135,49 @@ class IndexingController extends Controller
                         }
                     }
 
+                    // --- C. LÓGICA DE AUTO-CLASIFICACIÓN ---
+                    $targetLocationId = $inboxLocation->id; // Por defecto: Bandeja de Entrada
+                    $detectedCampaignName = null;
+
+                    // Buscamos si el nombre del archivo contiene alguna campaña conocida
+                    // Ej: "Audio_Claro_123.mp3" contiene "claro"
+                    foreach ($campaigns as $campName => $campId) {
+                        if (str_contains(strtolower($filename), $campName)) {
+                            $targetLocationId = $campId; // ¡Bingo! Lo mandamos a la campaña
+                            $detectedCampaignName = ucfirst($campName); // Guardamos el nombre bonito
+                            $autoClassifiedCount++;
+                            break; // Ya encontramos, dejamos de buscar
+                        }
+                    }
+
+                    // Extracción de metadatos (Cédula, Teléfono, Fecha)
                     $meta = $this->extractMetadata($filename);
 
+                    // Si detectamos campaña en el nombre, sobrescribimos la del metadata
+                    if ($detectedCampaignName) {
+                        $meta['campana'] = $detectedCampaignName;
+                    }
+
+                    // Guardar en BD
                     try {
                         Recording::create([
-                            'storage_location_id' => $location->id,
+                            'storage_location_id' => $targetLocationId, // Aquí ocurre la magia
                             'filename' => $filename,
-                            'path' => $fullPath, 
                             'full_path' => $fullPath,
-                            'folder_path' => $relativePath,
+                            'folder_path' => trim(str_replace($rootPath, '', $this->normalizePath($file->getPath())), '/'),
                             'size' => $file->getSize(),
                             'extension' => $file->getExtension(),
                             'cedula' => $meta['cedula'],
                             'telefono' => $meta['telefono'],
-                            'campana' => $meta['campana'],
-                            'fecha_grabacion' => $meta['fecha'] ?? $originalDate,
-                            'original_created_at' => $originalDate,
+                            'campana' => $meta['campana'], // Nombre texto (ej: Claro)
+                            'fecha_grabacion' => $meta['fecha'] ?? Carbon::createFromTimestamp($file->getMTime()),
+                            'original_created_at' => Carbon::createFromTimestamp($file->getMTime()),
                             'duration' => 0
                         ]);
                         $processedCount++;
 
                     } catch (QueryException $e) {
+                        // Error 1062 es Duplicate Entry (ya existe)
                         if ($e->errorInfo[1] == 1062) {
                             $skippedCount++;
                         } else {
@@ -176,91 +187,76 @@ class IndexingController extends Controller
                 }
             }
 
-            // AUDITORÍA 
-            try {
-                AuditLog::create([
-                    'user_id' => Auth::id(),
-                    'action' => 'Indexación',
-                    'details' => "Indexada ruta: $rootPath. Nuevos: $processedCount. Saltados: $skippedCount.",
-                    'ip_address' => $request->ip()
-                ]);
-            } catch (\Exception $e) { Log::error("Audit Error: " . $e->getMessage()); }
-
-            // --- 3. RESPUESTA INTELIGENTE ---
-            $statusType = 'success';
-            $titleMsg = 'Indexación Exitosa';
-            $message = "Se indexaron {$processedCount} archivos nuevos correctamente.";
-
-            if ($processedCount === 0 && $skippedCount > 0) {
-                $statusType = 'warning';
-                $titleMsg = 'Sin Cambios';
-                $message = "La carpeta ya estaba indexada. No se encontraron archivos nuevos.";
-            } elseif ($processedCount > 0 && $skippedCount > 0) {
-                $statusType = 'info';
-                $titleMsg = 'Indexación Parcial';
-                $message = "Se agregaron {$processedCount} archivos nuevos. {$skippedCount} ya existían.";
-            }
+            // D. AUDITORÍA Y RESPUESTA
+            $this->logAudit($processedCount, $autoClassifiedCount, $rootPath);
 
             return response()->json([
                 'indexed' => $processedCount,
+                'auto_classified' => $autoClassifiedCount, // Dato útil para el frontend
+                'inbox_count' => $processedCount - $autoClassifiedCount,
                 'skipped' => $skippedCount,
-                'total_in_db' => Recording::count(),
-                'status_type' => $statusType, 
-                'title_msg' => $titleMsg,
-                'message' => $message
+                'status_type' => $processedCount > 0 ? 'success' : 'warning',
+                'title_msg' => $processedCount > 0 ? 'Éxito' : 'Sin cambios',
+                'message' => $processedCount > 0 
+                    ? "Se indexaron $processedCount archivos ($autoClassifiedCount clasificados automáticamente)." 
+                    : "No se encontraron archivos nuevos."
             ]);
 
         } catch (\Throwable $e) {
-            Log::error("Error Indexing: " . $e->getMessage());
+            Log::error("Error Crítico Indexing: " . $e->getMessage());
             return response()->json(['message' => 'Error crítico: ' . $e->getMessage()], 500);
         }
+    }
+
+    // --- HELPERS PRIVADOS ---
+
+    private function logAudit($count, $auto, $path) {
+        try {
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'Indexación',
+                'details' => "Ruta: $path. Indexados: $count. Auto-clasificados: $auto.",
+                'ip_address' => request()->ip(),
+                'metadata' => json_encode(['path' => $path, 'total' => $count, 'auto' => $auto])
+            ]);
+        } catch (\Exception $e) {}
     }
 
     private function extractMetadata($filename)
     {
         $data = ['cedula' => null, 'telefono' => null, 'campana' => null, 'fecha' => null];
         
-        $cleanName = preg_replace('/(\d+)([a-zA-Z]+)/', '$1 $2', $filename);
-        $cleanName = preg_replace('/([a-zA-Z]+)(\d+)/', '$1 $2', $cleanName);
-        $cleanName = str_replace(['_', '-', '.'], ' ', $cleanName);
+        // Limpieza de nombre para facilitar regex
+        $cleanName = preg_replace('/[^a-zA-Z0-9]/', ' ', $filename);
 
-        $keywords = ['Ventas', 'Soporte', 'Cobranzas', 'Claro', 'Movistar', 'ETB', 'WOM', 'Tigo', 'Retencion'];
-        foreach ($keywords as $key) {
-            if (stripos($cleanName, $key) !== false) {
-                $data['campana'] = $key;
-                break;
-            }
-        }
-
+        // Búsqueda de secuencias numéricas
         preg_match_all('/\d+/', $cleanName, $matches);
-        $numerosEncontrados = $matches[0] ?? [];
+        $numeros = $matches[0] ?? [];
 
-        foreach ($numerosEncontrados as $num) {
+        foreach ($numeros as $num) {
             $len = strlen($num);
 
-            // A. FECHA (Prioridad: Ymd, empieza con 202)
-            if (($len == 8) && str_starts_with($num, '202')) { 
-                try { $data['fecha'] = Carbon::createFromFormat('Ymd', $num); continue; } catch (\Exception $e) {}
-            }
-
-            // B. CELULAR (Prioridad: 10 dígitos y empieza por 3)
-            if ($len == 10 && str_starts_with($num, '3')) {
-                if (!$data['telefono']) {
-                    $data['telefono'] = $num;
-                    continue; 
-                }
-            }
-
-            // C. CÉDULA (7 a 10 dígitos)
+            // Cédulas (7 a 10 dígitos, y que NO empiecen por 3 si son de 10)
             if ($len >= 7 && $len <= 10) {
+                // Validación simple para distinguir celular de cédula en Colombia
                 if ($len == 10 && str_starts_with($num, '3')) {
-                    continue; 
+                    if (!$data['telefono']) $data['telefono'] = $num;
+                } else {
+                    if (!$data['cedula']) $data['cedula'] = $num;
                 }
-                if (!$data['cedula']) {
-                    $data['cedula'] = $num;
-                }
+            }
+            // Celulares explícitos (10 dígitos empieza por 3)
+            elseif ($len == 10 && str_starts_with($num, '3')) {
+                if (!$data['telefono']) $data['telefono'] = $num;
+            }
+            // Fechas Ymd (20250101)
+            elseif ($len == 8 && str_starts_with($num, '202')) {
+                try {
+                    $data['fecha'] = Carbon::createFromFormat('Ymd', $num);
+                } catch (\Exception $e) {}
             }
         }
+
         return $data;
     }
 }

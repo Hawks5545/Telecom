@@ -10,16 +10,16 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-    {
-        Schema::create('storage_locations', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->nullable(); 
-            $table->string('path')->unique();   
-            $table->text('description')->nullable();
-            $table->boolean('is_active')->default(true); 
-            $table->timestamps();
-        });
-    }
+{
+    Schema::create('storage_locations', function (Blueprint $table) {
+        $table->id();
+        $table->string('name')->unique(); 
+        $table->string('path')->unique();   
+        $table->text('description')->nullable();
+        $table->boolean('is_active')->default(true);
+        $table->timestamps();
+    });
+}
 
     /**
      * Reverse the migrations.

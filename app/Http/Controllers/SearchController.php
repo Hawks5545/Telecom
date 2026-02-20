@@ -9,145 +9,191 @@ use App\Models\AuditLog;
 use ZipArchive;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth; 
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB; 
+use Illuminate\Support\Facades\Cache; // NUEVO: Para sincronizar el Dashboard
 
 class SearchController extends Controller
 {
+    // --- 1. OBTENER CARPETAS ---
     public function getFolders()
     {
-        return response()->json(StorageLocation::where('is_active', true)->select('id', 'path', 'name')->get());
+        return response()->json(
+            StorageLocation::where('is_active', true)
+                ->select('id', 'name', 'path') 
+                ->orderBy('name')
+                ->get()
+        );
     }
 
+    // --- 2. BÚSQUEDA (Segurizada) ---
     public function search(Request $request)
     {
-        $query = Recording::with('storageLocation'); 
-
-        // --- FILTROS ---
-        if ($request->filled('cedula')) {
-            $query->where('cedula', 'like', '%' . $request->cedula . '%');
-        }
-        if ($request->filled('telefono')) {
-            $query->where('telefono', 'like', '%' . $request->telefono . '%');
-        }
-        if ($request->filled('filename')) {
-            $query->where('filename', 'like', '%' . $request->filename . '%');
+        if ($request->filled('cedula') && strlen($request->cedula) < 4) {
+            return response()->json(['message' => 'Escribe al menos 4 números.'], 422);
         }
 
-        if ($request->filled('dateFrom') && $request->filled('dateTo')) {
-            $from = Carbon::parse($request->dateFrom)->startOfDay();
-            $to = Carbon::parse($request->dateTo)->endOfDay();
-            $query->whereBetween('fecha_grabacion', [$from, $to]);
-        } else {
-            if ($request->filled('dateFrom')) {
-                $from = Carbon::parse($request->dateFrom)->startOfDay();
-                $query->where('fecha_grabacion', '>=', $from);
-            }
-            if ($request->filled('dateTo')) {
-                $to = Carbon::parse($request->dateTo)->endOfDay();
-                $query->where('fecha_grabacion', '<=', $to);
-            }
-        }
+        // SEGURIDAD: Nunca pasar request->all() directo a un scope.
+        // Extraemos explícitamente solo los parámetros válidos que tu modelo espera.
+        $safeFilters = $request->only([
+            'cedula', 'telefono', 'filename', 'dateFrom', 'dateTo', 'folder_id', 'campana'
+        ]);
 
-        if ($request->filled('folderId')) {
-            $query->where('storage_location_id', $request->folderId);
-        }
-        if ($request->filled('campana')) {
-            $query->where('campana', 'like', '%' . $request->campana . '%');
-        }
+        $results = Recording::with('storageLocation:id,name') 
+            ->filter($safeFilters) // Ahora es 100% seguro contra inyección
+            ->orderBy('fecha_grabacion', 'desc')
+            ->paginate(15)
+            ->withQueryString();
 
-        $results = $query->orderBy('fecha_grabacion', 'desc')->paginate(15);
         return response()->json($results);
     }
 
-    // --- DESCARGA INDIVIDUAL (SIN CACHÉ) ---
+    // --- 3. MOVER GRABACIONES (Sincronizado) ---
+    public function moveRecordings(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'target_folder_id' => 'required|exists:storage_locations,id'
+        ]);
+
+        return DB::transaction(function () use ($request) {
+            $targetLocation = StorageLocation::findOrFail($request->target_folder_id);
+            
+            // ACTUALIZACIÓN MASIVA
+            $updatedCount = Recording::whereIn('id', $request->ids)
+                ->update([
+                    'storage_location_id' => $targetLocation->id,
+                    'campana' => $targetLocation->name 
+                ]);
+
+            // Auditoría
+            $this->auditAction(
+                'Mover Grabaciones', 
+                "Reasignó $updatedCount archivos a campaña: {$targetLocation->name}", 
+                $request,
+                [
+                    'target_folder' => $targetLocation->name,
+                    'count' => $updatedCount,
+                    'mode' => 'virtual_move'
+                ]
+            );
+
+            // OPTIMIZACIÓN Y SINCRONIZACIÓN: 
+            // Al mover archivos, los totales cambian. Borramos el caché para que
+            // el Dashboard y el Gestor de carpetas se actualicen de inmediato.
+            Cache::flush();
+
+            return response()->json([
+                'message' => "Proceso exitoso. Se movieron $updatedCount grabaciones a {$targetLocation->name}.",
+                'moved_count' => $updatedCount
+            ]);
+        });
+    }
+
+    // --- 4. DESCARGA INDIVIDUAL ---
     public function downloadItem(Request $request, $id)
     {
         $recording = Recording::findOrFail($id);
-        $pathToUse = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $recording->full_path ?? $recording->path);
+        
+        $pathToUse = $recording->full_path;
 
         if (!file_exists($pathToUse)) {
-            return response()->json(['message' => 'Archivo no encontrado en disco.'], 404);
+            Log::error("Archivo perdido físicamente ID: {$id} Ruta: {$pathToUse}");
+            return response()->json(['message' => 'El archivo no existe en el disco físico.'], 404);
         }
 
-        // AUDITORÍA
-        try {
-            $campana = $recording->campana ?: 'General';
-            AuditLog::create([
-                'user_id' => Auth::id(),
-                'action' => 'Descarga',
-                'details' => "Descarga individual: {$recording->filename}. Campaña: {$campana}",
-                'ip_address' => $request->ip()
-            ]);
-        } catch (\Exception $e) { 
-            Log::error("Audit Error: " . $e->getMessage());
-        }
+        $campaignName = $recording->storageLocation->name ?? 'General';
+        
+        $this->auditAction(
+            'Descarga', 
+            "Individual: {$recording->filename}", 
+            $request,
+            ['campaign' => $campaignName, 'file_size' => $recording->size]
+        );
 
-        // HEADERS ANTI-CACHÉ
-        $headers = [
-            'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
-            'Pragma' => 'no-cache',
-            'Expires' => 'Sat, 01 Jan 2000 00:00:00 GMT',
-        ];
-
-        return response()->download($pathToUse, $recording->filename, $headers);
+        return response()->download($pathToUse, $recording->filename, [
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Expires' => '0',
+        ]);
     }
 
-    // --- DESCARGA ZIP (MEJORADA: CUENTA ARCHIVOS POR CAMPAÑA) ---
+    // --- 5. DESCARGA ZIP MASIVA (Blindada) ---
     public function downloadZip(Request $request)
     {
-        $ids = $request->input('ids', []);
-        if (empty($ids)) return response()->json(['message' => 'No se seleccionaron archivos.'], 400);
+        set_time_limit(0);
+        ini_set('memory_limit', '512M');
 
-        $recordings = Recording::whereIn('id', $ids)->get();
+        $ids = $request->input('ids', []);
+        
+        if (empty($ids)) {
+            return response()->json(['message' => 'Seleccione archivos.'], 400);
+        }
+
+        // SEGURIDAD: Límite anti-colapso. 
+        // Evita que un usuario intente descargar 50,000 audios de golpe y tire el servidor.
+        $maxLimit = 1500;
+        if (count($ids) > $maxLimit) {
+            return response()->json(['message' => "Límite excedido. Por seguridad, solo puedes descargar hasta {$maxLimit} archivos por ZIP."], 422);
+        }
+
+        $recordings = Recording::with('storageLocation:id,name') 
+            ->whereIn('id', $ids)
+            ->select('id', 'filename', 'full_path', 'storage_location_id') 
+            ->get();
+        
         if ($recordings->isEmpty()) return response()->json(['message' => 'Archivos no encontrados.'], 404);
 
-        // --- LÓGICA NUEVA: CONTAR POR CAMPAÑA ---
-        // Agrupa por campaña y cuenta cuántos archivos hay de cada una
-        // Resultado ej: "Tigo:3, Claro:2"
-        $campaignCounts = $recordings->map(fn($r) => $r->campana ?: 'General')->countBy();
-        $campaignString = $campaignCounts->map(fn($count, $name) => "$name:$count")->implode(', ');
-        // ----------------------------------------
-
-        $tempDir = storage_path('app/temp');
+        $tempDir = storage_path('app/temp_zips');
         if (!File::exists($tempDir)) File::makeDirectory($tempDir, 0755, true);
 
-        $zipName = 'seleccion_' . date('Ymd_His') . '.zip';
+        $zipName = 'Seleccion_' . date('Ymd_His') . '.zip';
         $zipPath = $tempDir . '/' . $zipName;
 
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
             $filesAdded = 0;
+            $campaignCounts = [];
+
             foreach ($recordings as $rec) {
-                $realPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $rec->full_path ?? $rec->path);
-                if (file_exists($realPath)) {
-                    $zip->addFile($realPath, $rec->filename);
+                if (file_exists($rec->full_path)) {
+                    $zip->addFile($rec->full_path, $rec->filename);
                     $filesAdded++;
+                    
+                    $campName = $rec->storageLocation->name ?? 'General';
+                    if (!isset($campaignCounts[$campName])) $campaignCounts[$campName] = 0;
+                    $campaignCounts[$campName]++;
                 }
             }
             $zip->close();
 
-            if ($filesAdded === 0) return response()->json(['message' => 'Archivos físicos no existen.'], 404);
+            if ($filesAdded === 0) return response()->json(['message' => 'Ningún archivo físico encontrado.'], 404);
 
-            try {
-                // Guardamos el detalle con el formato especial {Nombre:Cantidad}
-                AuditLog::create([
-                    'user_id' => Auth::id(), 
-                    'action' => 'Descarga ZIP',
-                    'details' => "Descarga masiva de $filesAdded grabaciones. Campañas: {{$campaignString}}",
-                    'ip_address' => $request->ip()
-                ]);
-            } catch (\Exception $e) { Log::error("Audit ZIP Error: " . $e->getMessage()); }
+            $this->auditAction(
+                'Descarga ZIP', 
+                "ZIP con $filesAdded archivos.", 
+                $request,
+                ['file_count' => $filesAdded, 'campaigns_breakdown' => $campaignCounts]
+            );
 
-            $headers = [
-                'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
-                'Pragma' => 'no-cache',
-                'Expires' => 'Sat, 01 Jan 2000 00:00:00 GMT',
-            ];
-
-            return response()->download($zipPath, $zipName, $headers)->deleteFileAfterSend(true);
+            return response()->download($zipPath, $zipName)->deleteFileAfterSend(true);
         }
 
-        return response()->json(['message' => 'Error al crear ZIP.'], 500);
+        return response()->json(['message' => 'Error crítico al generar ZIP.'], 500);
+    }
+
+    // Helper privado
+    private function auditAction($action, $details, $request, $metadata = [])
+    {
+        try {
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => $action,
+                'details' => $details,
+                'metadata' => json_encode($metadata),
+                'ip_address' => $request->ip()
+            ]);
+        } catch (\Exception $e) { 
+            report($e); 
+        }
     }
 }

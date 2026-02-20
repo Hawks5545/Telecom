@@ -6,147 +6,179 @@ use Illuminate\Http\Request;
 use App\Models\Recording;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Models\StorageLocation;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
     public function getStats(Request $request)
     {
-        // 1. RANGO DE TIEMPO
-        $range = $request->input('range', 'month');
-        $startDate = match ($range) {
-            'day' => Carbon::today(),
-            'week' => Carbon::now()->subDays(7),
-            default => Carbon::now()->subDays(30),
-        };
-
-        // 2. KPI: TOTAL ARCHIVOS Y PESO (Optimizado)
-        $recordingStats = DB::table('recordings')
-            ->selectRaw('count(*) as total, sum(size) as size')
-            ->first();
-
-        $totalFiles = $recordingStats->total;
-        $totalSize = $recordingStats->size ?? 0;
-        $activeUsers = User::where('is_active', true)->count();
+        $allowedRanges = ['day', 'week', 'month'];
+        $range = in_array($request->input('range'), $allowedRanges) ? $request->input('range') : 'month';
         
-        // descargas hoy (KPI simple)
-        $downloadsToday = AuditLog::whereDate('created_at', Carbon::today())
-            ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
-            ->count();
-
-
-        // 3. TOP DESCARGAS POR CAMPAÑA (Lógica Mejorada para ZIPs)
+        // Version 12: Fuerza la limpieza de caché para aplicar la nueva regla de Importaciones
+        $cacheKey = 'dash_stats_v12_' . $range;
         
-        // Obtenemos campañas reales de la base de datos
-        $realCampaigns = DB::table('recordings')
-            ->whereNotNull('campana')
-            ->where('campana', '!=', '')
-            ->distinct()
-            ->pluck('campana')
-            ->toArray();
+        try {
+            // 1. ACTIVIDAD RECIENTE (En vivo)
+            $recentActivity = AuditLog::with('user:id,name')
+                ->latest('id') 
+                ->take(7)
+                ->get()
+                ->map(function ($log) {
+                    return [
+                        'id' => $log->id,
+                        'user' => $log->user ? $log->user->name : 'Sistema',
+                        'action' => strtoupper($log->action),
+                        'details' => Str::limit($log->details, 60),
+                        'time' => $log->created_at->diffForHumans()
+                    ];
+                });
 
-        // Traemos los logs
-        $logs = DB::table('audit_logs')
-            ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
-            ->where('created_at', '>=', $startDate)
-            ->pluck('details');
+            // 2. ESTADÍSTICAS PESADAS (Caché)
+            $cacheTime = match ($range) {
+                'day' => 60,
+                'week' => 300,
+                default => 600,
+            };
 
-        // Inicializamos contador en 0 para todas las campañas
-        $campaignStats = array_fill_keys($realCampaigns, 0);
-
-        foreach ($logs as $detail) {
-            // A. Intentamos detectar el nuevo formato de ZIP: "Campañas: {Tigo:3, Claro:2}"
-            // Usamos una Expresión Regular para buscar lo que está entre llaves {}
-            if (preg_match('/Campañas: \{(.*?)\}/', $detail, $matches)) {
-                $content = $matches[1]; // Ejemplo: "Tigo:3, Claro:2"
-                $parts = explode(',', $content);
+            $stats = Cache::remember($cacheKey, $cacheTime, function () use ($range) {
                 
-                foreach ($parts as $part) {
-                    // Separamos por los dos puntos
-                    $piezas = explode(':', $part);
-                    if (count($piezas) === 2) {
-                        $nombreCampana = trim($piezas[0]);
-                        $cantidad = (int) trim($piezas[1]);
+                $startDate = match ($range) {
+                    'day' => Carbon::now()->startOfDay(),
+                    'week' => Carbon::now()->subDays(7)->startOfDay(),
+                    default => Carbon::now()->subDays(30)->startOfDay(),
+                };
 
-                        // Sumamos la cantidad exacta a la gráfica
-                        if (isset($campaignStats[$nombreCampana])) {
-                            $campaignStats[$nombreCampana] += $cantidad;
-                        } else {
-                            // Si la campaña es nueva (no estaba en realCampaigns), la agregamos
-                            $campaignStats[$nombreCampana] = $cantidad;
+                // KPI GLOBALES
+                $totalFiles = Recording::count();
+                $totalSize = Recording::sum('size');
+                $activeUsers = User::where('is_active', true)->count();
+                
+                $downloadsToday = AuditLog::whereDate('created_at', Carbon::today())
+                    ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
+                    ->count();
+
+                // BANDEJA DE ENTRADA
+                $importLocationsIds = StorageLocation::where('name', 'like', '%Importaci%')->pluck('id');
+                $importFilesCount = Recording::whereIn('storage_location_id', $importLocationsIds)
+                                             ->orWhereNull('storage_location_id')
+                                             ->count();
+
+                // 3. DEMANDA (Barras - Regla estricta para Importaciones)
+                $demandStats = [];
+                
+                // OPTIMIZACIÓN: Solo traemos nombres de campañas puras, ignoramos importaciones desde la raíz
+                $motherFolders = StorageLocation::where('name', 'not like', '%Importaci%')->pluck('name')->toArray();
+
+                AuditLog::select('action', 'details', 'metadata')
+                    ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
+                    ->where('created_at', '>=', $startDate)
+                    ->chunk(2000, function ($logs) use (&$demandStats, $motherFolders) {
+                        
+                        foreach ($logs as $log) {
+                            $found = false;
+                            
+                            // LECTURA JSON
+                            if (!empty($log->metadata)) {
+                                $meta = is_string($log->metadata) ? json_decode($log->metadata, true) : $log->metadata;
+                                if (is_array($meta)) {
+                                    
+                                    if (isset($meta['campaigns_breakdown']) || isset($meta['campaigns'])) {
+                                        $breakdown = $meta['campaigns_breakdown'] ?? $meta['campaigns'];
+                                        foreach ($breakdown as $name => $count) {
+                                            $cleanName = $name ?: 'Otros / Sin clasificar';
+                                            
+                                            // REGLA CLAVE: Si dice "Importación" o "General", va a Otros
+                                            if (stripos($cleanName, 'importaci') !== false || $cleanName === 'General') {
+                                                $cleanName = 'Otros / Sin clasificar';
+                                            }
+                                            
+                                            if (!isset($demandStats[$cleanName])) $demandStats[$cleanName] = 0;
+                                            $demandStats[$cleanName] += (int)$count;
+                                            $found = true;
+                                        }
+                                    } 
+                                    elseif (isset($meta['campaign'])) {
+                                        $cleanName = $meta['campaign'] ?: 'Otros / Sin clasificar';
+                                        
+                                        // REGLA CLAVE
+                                        if (stripos($cleanName, 'importaci') !== false || $cleanName === 'General') {
+                                            $cleanName = 'Otros / Sin clasificar';
+                                        }
+                                        
+                                        if (!isset($demandStats[$cleanName])) $demandStats[$cleanName] = 0;
+                                        
+                                        $archivosSumados = isset($meta['file_count']) ? (int)$meta['file_count'] : 1;
+                                        $demandStats[$cleanName] += $archivosSumados; 
+                                        $found = true;
+                                    }
+                                }
+                            }
+
+                            // FALLBACK (Para logs viejos)
+                            if (!$found && !empty($log->details)) {
+                                foreach ($motherFolders as $folderName) {
+                                    // Como $motherFolders ya no tiene importaciones, nunca hará match con ellas
+                                    if (stripos($log->details, $folderName) !== false) {
+                                        if (!isset($demandStats[$folderName])) $demandStats[$folderName] = 0;
+                                        $demandStats[$folderName]++;
+                                        $found = true;
+                                        break;
+                                    }
+                                }
+                                if (!$found) {
+                                    $otherName = 'Otros / Sin clasificar';
+                                    if (!isset($demandStats[$otherName])) $demandStats[$otherName] = 0;
+                                    $demandStats[$otherName]++;
+                                }
+                            }
                         }
-                    }
-                }
-            } 
-            // B. Si no es formato ZIP nuevo, usamos la lógica antigua (Descarga individual = 1)
-            else {
-                foreach ($realCampaigns as $camp) {
-                    if (stripos($detail, $camp) !== false) {
-                        $campaignStats[$camp]++;
-                        // No hacemos break porque una descarga individual solo tiene 1 campaña
-                        break; 
-                    }
-                }
-            }
-        }
-        
-        arsort($campaignStats);
-        $campaignStats = array_slice($campaignStats, 0, 10); 
-        if (empty($campaignStats)) $campaignStats = ['Sin datos' => 0];
+                    });
 
+                arsort($demandStats);
+                $topDemand = array_slice($demandStats, 0, 10);
+                
+                // DISTRIBUCIÓN (Dona) 
+                $inventory = StorageLocation::where('is_active', true)
+                    ->where('name', 'not like', '%Importaci%')
+                    ->withCount('recordings')
+                    ->having('recordings_count', '>', 0)
+                    ->orderByDesc('recordings_count')
+                    ->limit(6) 
+                    ->get();
 
-        // 4. GRÁFICO DE DONA (DISTRIBUCIÓN DE ARCHIVOS EN DISCO)
-        $pieStats = DB::table('recordings')
-            ->select('campana', DB::raw('count(*) as total'))
-            ->whereNotNull('campana')
-            ->where('campana', '!=', '')
-            ->groupBy('campana')
-            ->orderByDesc('total')
-            ->limit(5)
-            ->get();
-
-        if ($pieStats->isEmpty()) {
-            $pieLabels = ['Sin Campaña'];
-            $pieData = [$totalFiles];
-        } else {
-            $pieLabels = $pieStats->pluck('campana');
-            $pieData = $pieStats->pluck('total');
-        }
-
-        // 5. ACTIVIDAD RECIENTE
-        $recentActivity = AuditLog::with('user:id,name')
-            ->latest()
-            ->take(5)
-            ->get()
-            ->map(function ($log) {
                 return [
-                    'id' => $log->id,
-                    'user' => $log->user ? $log->user->name : 'Usuario Eliminado',
-                    'action' => $log->action,
-                    'time' => $log->created_at->diffForHumans()
+                    'kpi' => [
+                        'files' => (int) $totalFiles,
+                        'size' => $this->formatBytes($totalSize),
+                        'users' => (int) $activeUsers,
+                        'downloads_today' => (int) $downloadsToday,
+                        'import_files' => (int) $importFilesCount
+                    ],
+                    'charts' => [
+                        'campaigns' => [ 
+                            'labels' => array_keys($topDemand), 
+                            'data' => array_values($topDemand) 
+                        ],
+                        'distribution' => [ 
+                            'labels' => $inventory->pluck('name'), 
+                            'data' => $inventory->pluck('recordings_count') 
+                        ]
+                    ]
                 ];
             });
 
-        return response()->json([
-            'kpi' => [
-                'files' => number_format($totalFiles),
-                'size' => $this->formatBytes($totalSize),
-                'users' => $activeUsers,
-                'downloads_today' => $downloadsToday
-            ],
-            'charts' => [
-                'campaigns' => [
-                    'labels' => array_keys($campaignStats),
-                    'data' => array_values($campaignStats)
-                ],
-                'distribution' => [
-                    'labels' => $pieLabels,
-                    'data' => $pieData
-                ]
-            ],
-            'activity' => $recentActivity
-        ]);
+            $stats['activity'] = $recentActivity;
+            return response()->json($stats);
+
+        } catch (\Exception $e) {
+            Log::error("Error en Dashboard: " . $e->getMessage());
+            return response()->json(['error' => 'Error interno procesando las estadísticas'], 500);
+        }
     }
 
     private function formatBytes($bytes, $precision = 2) {

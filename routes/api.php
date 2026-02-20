@@ -33,19 +33,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/indexing/scan', [IndexingController::class, 'scanFolder']);
     Route::post('/indexing/run', [IndexingController::class, 'runIndexing']);
 
-    // Búsqueda de Grabaciones 
+    // Busqueda de grabaciones
     Route::get('/search/folders', [SearchController::class, 'getFolders']); 
     Route::get('/search/results', [SearchController::class, 'search']); 
-    
-    // --- ESTA ES LA LÍNEA QUE FALTABA PARA QUE FUNCIONE LA DESCARGA INDIVIDUAL ---
     Route::get('/search/download/{id}', [SearchController::class, 'downloadItem']);
-    
-    Route::post('/search/download-zip', [SearchController::class, 'downloadZip']); 
+    Route::post('/search/download-zip', [SearchController::class, 'downloadZip']);
+    Route::post('/search/move', [SearchController::class, 'moveRecordings']); 
 
     // Gestor de carpetas
     Route::get('/folder-manager/items', [FolderManagerController::class, 'getItems']);
     Route::get('/folder-manager/download/{id}', [FolderManagerController::class, 'downloadItem']);
     Route::get('/folder-manager/download-folder/{id}', [FolderManagerController::class, 'downloadFolder']);
+    Route::post('/folder-manager/create', [FolderManagerController::class, 'createFolder']);
+    Route::delete('/folder-manager/{id}', [FolderManagerController::class, 'deleteFolder']);
+    Route::put('/folder-manager/{id}', [FolderManagerController::class, 'updateFolder']);
 
     // Auditoría
     Route::get('/audit/logs', [AuditController::class, 'index']);

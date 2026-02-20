@@ -9,7 +9,14 @@ class AuditLog extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'action', 'details', 'ip_address'];
+    // Se agregó 'metadata' para permitir que el JSON de las descargas se guarde en la BD
+    protected $fillable = [
+        'user_id', 
+        'action', 
+        'details', 
+        'metadata', // <--- AQUÍ ESTÁ LA SOLUCIÓN
+        'ip_address'
+    ];
 
     // Relación: Un log pertenece a un usuario
     public function user()

@@ -19,18 +19,12 @@ const Auditoria = () => {
         dateFrom: '', dateTo: '', userId: '', action: ''
     });
 
-    // Estado para la fecha máxima (HOY)
     const [maxDate, setMaxDate] = useState('');
-
-    // Alertas
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, type: 'info', title: '', message: '' });
     const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
     // --- CARGA DE DATOS ---
-    
-    // 1. Cargar lista de usuarios para el select y establecer fecha máxima
     useEffect(() => {
-        // Establecer fecha de hoy como límite
         setMaxDate(new Date().toISOString().split('T')[0]);
 
         const fetchUsers = async () => {
@@ -45,11 +39,13 @@ const Auditoria = () => {
         fetchUsers();
     }, []);
 
-    // 2. Cargar Logs (Historial)
-    const fetchLogs = useCallback(async (page = 1) => {
+    // OPTIMIZACIÓN: Acepta filtros sobreescritos para evitar el lag del estado en el botón "Limpiar"
+    const fetchLogs = useCallback(async (page = 1, overrideFilters = null) => {
         setIsLoading(true);
         const token = localStorage.getItem('auth_token');
-        const params = new URLSearchParams({ page, ...filters });
+        const activeFilters = overrideFilters || filters;
+        
+        const params = new URLSearchParams({ page, ...activeFilters });
 
         try {
             const res = await fetch(`http://127.0.0.1:8000/api/audit/logs?${params}`, {
@@ -58,14 +54,19 @@ const Auditoria = () => {
             
             if (res.ok) {
                 const data = await res.json();
-                setLogs(data.data);
-                setPagination({
-                    currentPage: data.current_page,
-                    lastPage: data.last_page,
-                    total: data.total,
-                    from: data.from,
-                    to: data.to
-                });
+                // Verificación de seguridad por si la API devuelve el objeto vacío paginado
+                if (data.data) {
+                    setLogs(data.data);
+                    setPagination({
+                        currentPage: data.current_page,
+                        lastPage: data.last_page,
+                        total: data.total,
+                        from: data.from,
+                        to: data.to
+                    });
+                } else {
+                    setLogs([]);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -75,10 +76,9 @@ const Auditoria = () => {
         }
     }, [filters]);
 
-    // Carga inicial y recarga al cambiar página
     useEffect(() => {
         fetchLogs(1);
-    }, []); 
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // --- MANEJADORES ---
     const handleFilterChange = (e) => {
@@ -90,8 +90,9 @@ const Auditoria = () => {
     };
 
     const handleClear = () => {
-        setFilters({ dateFrom: '', dateTo: '', userId: '', action: '' });
-        setTimeout(() => fetchLogs(1), 50);
+        const emptyFilters = { dateFrom: '', dateTo: '', userId: '', action: '' };
+        setFilters(emptyFilters);
+        fetchLogs(1, emptyFilters); // Llamada directa, sin setTimeouts raros
     };
 
     const handlePageChange = (newPage) => {
@@ -100,13 +101,45 @@ const Auditoria = () => {
         }
     };
 
-    // Estilos para las etiquetas
+    // --- UI HELPERS ---
     const getBadgeStyle = (actionName) => {
         const action = actionName ? actionName.toLowerCase() : '';
-        if (action.includes('inicio') || action.includes('login')) return styles.badgeLogin;
+        if (action.includes('inicio') || action.includes('login') || action.includes('sesión')) return styles.badgeLogin;
         if (action.includes('descarga')) return styles.badgeDownload;
-        if (action.includes('eliminar')) return styles.badgeDelete;
-        return styles.badgeUpdate; // Default
+        if (action.includes('eliminar') || action.includes('borrar')) return styles.badgeDelete;
+        if (action.includes('index') || action.includes('carpeta') || action.includes('mover')) return styles.badgeSystem;
+        return styles.badgeUpdate; // Ediciones de usuarios, roles, etc.
+    };
+
+    // Renderizador Inteligente de Metadata (JSON)
+    const renderMetadata = (metaString) => {
+        if (!metaString) return null;
+        try {
+            const meta = typeof metaString === 'string' ? JSON.parse(metaString) : metaString;
+            // Si está vacío
+            if (!meta || Object.keys(meta).length === 0) return null;
+            
+            // Ocultamos las estadisticas gigantes del zip
+            if (meta.campaigns_breakdown || meta.file_count) return null;
+
+            // Formato visual de "Píldoras" para cambios de usuario/roles
+            return (
+                <div className={styles.metaContainer}>
+                    {Object.entries(meta).map(([key, value]) => {
+                        // Evita renderizar arrays completos o campos muy técnicos
+                        if (typeof value === 'object') return null;
+                        
+                        // Traducción amigable de claves comunes
+                        const label = key.replace('old_', 'Anterior ').replace('new_', 'Nuevo ').replace('_', ' ');
+                        return (
+                            <span key={key} className={styles.metaBadge}>
+                                <strong className="text-capitalize">{label}:</strong> {String(value)}
+                            </span>
+                        );
+                    })}
+                </div>
+            );
+        } catch (e) { return null; }
     };
 
     return (
@@ -128,23 +161,15 @@ const Auditoria = () => {
                         <div className="col-md-3">
                             <label className={styles.label}>Fecha desde</label>
                             <input 
-                                type="date" 
-                                className="form-control" 
-                                name="dateFrom" 
-                                value={filters.dateFrom} 
-                                max={maxDate} // BLOQUEO DE FECHAS FUTURAS
-                                onChange={handleFilterChange} 
+                                type="date" className="form-control" name="dateFrom" 
+                                value={filters.dateFrom} max={maxDate} onChange={handleFilterChange} 
                             />
                         </div>
                         <div className="col-md-3">
                             <label className={styles.label}>Fecha hasta</label>
                             <input 
-                                type="date" 
-                                className="form-control" 
-                                name="dateTo" 
-                                value={filters.dateTo} 
-                                max={maxDate} // BLOQUEO DE FECHAS FUTURAS
-                                onChange={handleFilterChange} 
+                                type="date" className="form-control" name="dateTo" 
+                                value={filters.dateTo} max={maxDate} onChange={handleFilterChange} 
                             />
                         </div>
                         <div className="col-md-3">
@@ -160,10 +185,26 @@ const Auditoria = () => {
                             <label className={styles.label}>Acción</label>
                             <select className="form-select" name="action" value={filters.action} onChange={handleFilterChange}>
                                 <option value="">Todas</option>
-                                <option value="Login">Inicio de Sesión</option>
-                                <option value="Descarga">Descargas</option>
-                                <option value="Eliminar">Eliminaciones</option>
-                                <option value="Configuracion">Configuración</option>
+                                <optgroup label="Accesos">
+                                    <option value="Inicio de Sesión">Inicio de Sesión</option>
+                                    <option value="Cierre de Sesión">Cierre de Sesión</option>
+                                </optgroup>
+                                <optgroup label="Archivos y Carpetas">
+                                    <option value="Descarga">Descarga Individual</option>
+                                    <option value="Descarga ZIP">Descarga ZIP Masiva</option>
+                                    <option value="Descarga ZIP Folder">Descarga ZIP Carpeta</option>
+                                    <option value="Indexación">Indexación de Audios</option>
+                                    <option value="Mover Grabaciones">Mover Grabaciones</option>
+                                    <option value="Crear Carpeta">Crear Carpeta</option>
+                                    <option value="Eliminar Carpeta">Eliminar Carpeta</option>
+                                    <option value="Renombrar Carpeta">Renombrar Carpeta</option>
+                                </optgroup>
+                                <optgroup label="Administración">
+                                    <option value="Crear Usuario">Crear Usuario</option>
+                                    <option value="Actualizar Usuario">Actualizar Usuario</option>
+                                    <option value="Eliminar Usuario">Eliminar Usuario</option>
+                                    <option value="Cambiar Rol">Asignar/Cambiar Rol</option>
+                                </optgroup>
                             </select>
                         </div>
 
@@ -196,28 +237,30 @@ const Auditoria = () => {
                             </thead>
                             <tbody>
                                 {isLoading ? (
-                                    <tr><td colSpan="4" className="text-center py-5">Cargando historial...</td></tr>
+                                    <tr><td colSpan="4" className="text-center py-5"><div className="spinner-border text-primary"></div></td></tr>
                                 ) : logs.length > 0 ? (
                                     logs.map((log) => (
                                         <tr key={log.id}>
-                                            <td className="ps-4 text-muted" style={{fontFamily: 'monospace'}}>
-                                                {new Date(log.created_at).toLocaleString()}
+                                            <td className="ps-4 text-muted" style={{fontFamily: 'monospace', fontSize: '0.9rem'}}>
+                                                {new Date(log.created_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' })}
                                             </td>
-                                            <td className="fw-bold text-secondary">
-                                                <i className="bi bi-person-circle me-2"></i>{log.user ? log.user.name : 'Usuario Eliminado'}
+                                            <td className="fw-bold" style={{color: '#005461'}}>
+                                                <i className="bi bi-person-circle me-2 text-secondary"></i>{log.user ? log.user.name : 'Usuario Eliminado'}
                                             </td>
                                             <td>
                                                 <span className={`badge ${getBadgeStyle(log.action)} p-2 rounded-pill fw-normal`}>
                                                     {log.action}
                                                 </span>
                                             </td>
-                                            <td className="text-muted small text-break" style={{maxWidth: '300px'}}>
-                                                {log.details}
+                                            <td className="text-dark small py-3" style={{maxWidth: '350px'}}>
+                                                <span className="d-block mb-1">{log.details}</span>
+                                                {/* Aquí se renderizará la metadata de cambios de rol/usuario */}
+                                                {renderMetadata(log.metadata)}
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
-                                    <tr><td colSpan="4" className="text-center py-5 text-muted">No se encontraron registros.</td></tr>
+                                    <tr><td colSpan="4" className="text-center py-5 text-muted">No se encontraron registros de auditoría.</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -237,7 +280,7 @@ const Auditoria = () => {
                         <ul className="pagination mb-0 gap-1">
                             <li>
                                 <button 
-                                    className={`btn btn-sm btn-light ${pagination.currentPage === 1 ? 'disabled' : ''}`}
+                                    className={`btn btn-sm btn-light border ${pagination.currentPage === 1 ? 'disabled' : ''}`}
                                     onClick={() => handlePageChange(pagination.currentPage - 1)}
                                     disabled={pagination.currentPage === 1}
                                 >
@@ -245,13 +288,13 @@ const Auditoria = () => {
                                 </button>
                             </li>
                             <li className="mx-2 d-flex align-items-center">
-                                <span className="small">Pág {pagination.currentPage} de {pagination.lastPage}</span>
+                                <span className="small text-muted">Pág <strong className="text-dark">{pagination.currentPage}</strong> de {pagination.lastPage}</span>
                             </li>
                             <li>
                                 <button 
-                                    className={`btn btn-sm btn-light ${pagination.currentPage === pagination.lastPage ? 'disabled' : ''}`}
+                                    className={`btn btn-sm btn-light border ${pagination.currentPage === pagination.lastPage || pagination.total === 0 ? 'disabled' : ''}`}
                                     onClick={() => handlePageChange(pagination.currentPage + 1)}
-                                    disabled={pagination.currentPage === pagination.lastPage}
+                                    disabled={pagination.currentPage === pagination.lastPage || pagination.total === 0}
                                 >
                                     <i className="bi bi-chevron-right"></i>
                                 </button>

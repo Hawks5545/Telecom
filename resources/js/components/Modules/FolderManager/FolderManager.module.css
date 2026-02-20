@@ -1,3 +1,5 @@
+/* --- FolderManager.module.css --- */
+
 /* --- ANIMACIONES --- */
 .fadeIn { 
     animation: fadeIn 0.5s ease-in-out; 
@@ -8,17 +10,17 @@
     to { opacity: 1; transform: translateY(0); } 
 }
 
-/* --- ESTRUCTURA FULL HEIGHT (Sin scroll global) --- */
+/* --- ESTRUCTURA FULL HEIGHT --- */
 .fullHeightContainer {
-    height: calc(100vh - 100px); /* Ajustar según altura de tu navbar */
+    height: calc(100vh - 100px); 
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Evita que la página completa haga scroll */
+    overflow: hidden; 
 }
 
 /* --- TEXTOS Y TÍTULOS --- */
 .pageTitle { 
-    color: #005461; 
+    color: #005461; /* Corporativo */
     font-weight: 700; 
     margin: 0; 
     font-size: 1.5rem;
@@ -49,7 +51,7 @@
     border-radius: 12px 12px 0 0;
 }
 
-/* --- BOTONES DE FILTRO --- */
+/* --- BOTONES PERSONALIZADOS --- */
 .searchBtn { 
     background-color: #005461; 
     color: white; 
@@ -62,6 +64,30 @@
     color: white; 
 }
 
+.btnPrimaryCustom {
+    background-color: #005461;
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+
+.btnPrimaryCustom:hover {
+    background-color: #003d46;
+    color: white;
+}
+
+.btnSecondaryCustom {
+    background-color: #00d49f; /* Acento claro */
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+
+.btnSecondaryCustom:hover {
+    background-color: #00b386;
+    color: white;
+}
+
 /* --- BREADCRUMBS --- */
 .breadcrumbBar {
     background-color: #f8f9fa; 
@@ -72,7 +98,7 @@
     align-items: center; 
     gap: 10px; 
     border: 1px solid #e9ecef;
-    flex-shrink: 0; /* Evita que se encoja */
+    flex-shrink: 0; 
 }
 
 .breadcrumbItem { 
@@ -84,7 +110,7 @@
 }
 
 .breadcrumbItem:hover { 
-    color: #3BC1A8; 
+    color: #00d49f; 
     text-decoration: underline; 
 }
 
@@ -95,19 +121,14 @@
     cursor: default; 
 }
 
-.separator { 
-    color: #adb5bd; 
-    font-size: 0.7rem; 
-}
-
 /* --- TABLA Y SCROLL INTERNO --- */
 .cardTable {
-    overflow: hidden; /* Contiene el scroll dentro de la card */
+    overflow: hidden; 
     margin-bottom: 0 !important;
 }
 
 .tableContainer {
-    flex: 1; /* Ocupa todo el espacio disponible */
+    flex: 1; 
     overflow: hidden;
     position: relative;
     display: flex;
@@ -116,19 +137,18 @@
 
 .tableWrapper {
     flex: 1;
-    overflow-y: auto; /* Scroll vertical aquí */
+    overflow-y: auto; 
     overflow-x: auto;
     border-bottom: 1px solid #dee2e6;
 }
 
-/* Scrollbar estilizado */
 .tableWrapper::-webkit-scrollbar { width: 8px; height: 8px; }
 .tableWrapper::-webkit-scrollbar-track { background: #f1f1f1; }
-.tableWrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
-.tableWrapper::-webkit-scrollbar-thumb:hover { background: #bbb; }
+.tableWrapper::-webkit-scrollbar-thumb { background: #005461; opacity: 0.5; border-radius: 4px; }
+.tableWrapper::-webkit-scrollbar-thumb:hover { background: #003d46; }
 
 .tableHeader th {
-    position: sticky; /* Cabecera fija */
+    position: sticky; 
     top: 0;
     z-index: 10;
     background-color: #005461;
@@ -139,51 +159,67 @@
     white-space: nowrap;
 }
 
-/* --- ICONOS Y ELEMENTOS DE TABLA --- */
-.folderIcon { 
-    color: #F8D775; 
-    font-size: 1.5rem; /* Icono un poco más grande */
+/* --- PESTAÑAS (TABS) --- */
+.customTab {
+    color: #6c757d;
+    font-weight: 500;
+    border: none;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s;
 }
 
-.fileIcon { 
-    color: #3BC1A8; 
+.customTab:hover {
+    color: #005461;
+    border-bottom: 3px solid #e9ecef;
+}
+
+.customTabActive {
+    color: #005461 !important;
+    font-weight: 700;
+    border-bottom: 3px solid #005461 !important;
+}
+
+/* --- BARRA DE SELECCIÓN --- */
+.selectionBar {
+    background-color: #e0fcf5; /* Verde agua muy claro */
+    border: 1px solid #00d49f;
+    color: #005461;
+    border-radius: 8px;
+}
+
+/* --- ICONOS Y ELEMENTOS DE TABLA --- */
+.folderIcon { 
+    color: #ffca28; /* Amarillo para carpetas virtuales */
     font-size: 1.5rem; 
 }
 
-/* NUEVA CLASE PARA LA RUTA DEBAJO DEL NOMBRE */
+.fileIcon { 
+    color: #00d49f; /* Acento para archivos */
+    font-size: 1.5rem; 
+}
+
 .itemPath {
     display: block;
     font-size: 0.7rem;
-    color: #adb5bd; /* Gris suave */
-    max-width: 400px; /* Ancho máximo para que no rompa la tabla */
+    color: #adb5bd; 
+    max-width: 400px; 
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; /* Pone tres puntos (...) si es muy larga */
+    text-overflow: ellipsis; 
     line-height: 1.2;
     margin-top: 2px;
 }
 
-/* --- BOTONES DE ACCIÓN EN TABLA --- */
-.btnOpen { 
-    color: #005461; 
-    border-color: #005461; 
-    font-size: 0.8rem; 
-    padding: 0.2rem 0.5rem;
+/* --- MODAL PERSONALIZADO --- */
+.modalHeaderCustom {
+    background-color: #005461;
+    color: white;
+    border-bottom: none;
 }
 
-.btnOpen:hover { 
-    background-color: #005461; 
-    color: white; 
-}
-
-.btnDownload { 
-    color: #3BC1A8; 
-    border-color: #3BC1A8; 
-    font-size: 0.8rem; 
-    padding: 0.2rem 0.5rem;
-}
-
-.btnDownload:hover { 
-    background-color: #3BC1A8; 
-    color: white; 
+.modalFooterCustom {
+    background-color: #f8f9fa;
+    border-top: 1px solid #eeeeee;
 }
