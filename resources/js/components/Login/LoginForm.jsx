@@ -3,8 +3,8 @@ import styles from './Login.module.css';
 import ForgotPasswordModal from './ForgotPassword/ForgotPasswordModal';
 
 const LoginForm = ({ onBack, onLogin }) => {
-    // Estados para los inputs
-    const [email, setEmail] = useState('');
+    // ESTADOS: Cambiamos 'email' por 'loginId' para reflejar que acepta ambas cosas
+    const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
     
     // Estados para la interfaz
@@ -22,7 +22,7 @@ const LoginForm = ({ onBack, onLogin }) => {
             // 0. Limpieza preventiva
             localStorage.clear();
 
-            // 1. Petición al Backend Laravel
+            // 1. Petición al Backend Laravel (Enviamos 'login_id' en vez de 'email')
             const response = await fetch('/api/login', {
                 method: 'POST',
                 headers: {
@@ -30,7 +30,7 @@ const LoginForm = ({ onBack, onLogin }) => {
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
-                    email: email,
+                    login_id: loginId, // <-- La clave que Laravel espera ahora
                     password: password
                 })
             });
@@ -52,7 +52,7 @@ const LoginForm = ({ onBack, onLogin }) => {
 
         } catch (error) {
             console.error("Error de conexión:", error);
-            setError('No se pudo conectar con el servidor. Verifica que Laravel esté corriendo.');
+            setError('No se pudo conectar con el servidor. Verifica que tu conexión o el sistema estén activos.');
         } finally {
             setIsLoading(false);
         }
@@ -82,20 +82,20 @@ const LoginForm = ({ onBack, onLogin }) => {
             )}
 
             <form onSubmit={handleSubmit}>
-                {/* Campo: Correo Electrónico */}
+                {/* Campo: Correo Electrónico o Cédula (AHORA DINÁMICO) */}
                 <div className={styles.inputGroup}>
                     <input
-                        type="email"
-                        id="emailInput"
+                        type="text" // <-- Cambiamos de "email" a "text" para que permita números sin arroba
+                        id="loginInput"
                         className={styles.floatingInput}
                         placeholder=" " 
                         required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        value={loginId}
+                        onChange={(e) => setLoginId(e.target.value)}
                         disabled={isLoading}
                     />
-                    <label htmlFor="emailInput" className={styles.floatingLabel}>
-                        Correo electrónico
+                    <label htmlFor="loginInput" className={styles.floatingLabel}>
+                        Correo electrónico o Cédula
                     </label>
                 </div>
 

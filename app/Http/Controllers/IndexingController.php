@@ -29,7 +29,6 @@ class IndexingController extends Controller
         $path = rtrim($path, '/');
 
         // Seguridad: Resolver ruta real para evitar ".." (Path Traversal)
-        // Solo si la carpeta existe físicamente
         if (file_exists($path)) {
             $realPath = realpath($path);
             if ($realPath) {
@@ -94,19 +93,18 @@ class IndexingController extends Controller
 
             // A. PREPARAR DESTINOS (OPTIMIZACIÓN)
             
-            // 1. Cargamos Campañas "Madre" en memoria para comparación rápida
-            // Esto evita hacer miles de consultas a la BD dentro del bucle.
-            // Formato: ['claro' => 5, 'etb' => 8, 'movistar' => 2] (Nombre en minúscula => ID)
+            // 1. Cargamos SÓLO Campañas "Madre" en memoria para comparación rápida
             $campaigns = StorageLocation::where('is_active', true)
+                ->where('type', 'campaign') // <-- NUEVO: Solo buscar coincidencias en Campañas
                 ->pluck('id', 'name')
                 ->mapWithKeys(fn($id, $name) => [strtolower($name) => $id])
                 ->toArray();
 
             // 2. Gestionar la "Bandeja de Entrada" (Importación Física)
-            // Si el archivo no coincide con ninguna campaña, caerá aquí.
             $inboxLocation = StorageLocation::firstOrCreate(
                 ['path' => $rootPath],
                 [
+                    'type' => 'inbox', // <-- NUEVO: Si no existe, se crea estrictamente como Inbox
                     'name' => 'Importación ' . date('Y-m-d H:i'),
                     'is_active' => true
                 ]
@@ -115,13 +113,13 @@ class IndexingController extends Controller
             // B. PROCESAMIENTO DE ARCHIVOS
             $processedCount = 0;
             $skippedCount = 0;
-            $autoClassifiedCount = 0; // Contador para saber cuántos se movieron solos
+            $autoClassifiedCount = 0; 
 
             $dirIterator = new RecursiveDirectoryIterator($rootPath, RecursiveDirectoryIterator::SKIP_DOTS);
             $iterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::LEAVES_ONLY);
 
             foreach ($iterator as $file) {
-                // Validación rápida de extensión usando Regex (más rápido que in_array)
+                // Validación rápida de extensión usando Regex
                 if ($file->isFile() && preg_match('/\.(mp3|wav|ogg|aac|wma)$/i', $file->getFilename())) {
                     
                     $filename = $file->getFilename();
@@ -139,14 +137,12 @@ class IndexingController extends Controller
                     $targetLocationId = $inboxLocation->id; // Por defecto: Bandeja de Entrada
                     $detectedCampaignName = null;
 
-                    // Buscamos si el nombre del archivo contiene alguna campaña conocida
-                    // Ej: "Audio_Claro_123.mp3" contiene "claro"
                     foreach ($campaigns as $campName => $campId) {
                         if (str_contains(strtolower($filename), $campName)) {
-                            $targetLocationId = $campId; // ¡Bingo! Lo mandamos a la campaña
-                            $detectedCampaignName = ucfirst($campName); // Guardamos el nombre bonito
+                            $targetLocationId = $campId; 
+                            $detectedCampaignName = ucfirst($campName); 
                             $autoClassifiedCount++;
-                            break; // Ya encontramos, dejamos de buscar
+                            break; 
                         }
                     }
 
@@ -161,7 +157,7 @@ class IndexingController extends Controller
                     // Guardar en BD
                     try {
                         Recording::create([
-                            'storage_location_id' => $targetLocationId, // Aquí ocurre la magia
+                            'storage_location_id' => $targetLocationId, 
                             'filename' => $filename,
                             'full_path' => $fullPath,
                             'folder_path' => trim(str_replace($rootPath, '', $this->normalizePath($file->getPath())), '/'),
@@ -169,7 +165,7 @@ class IndexingController extends Controller
                             'extension' => $file->getExtension(),
                             'cedula' => $meta['cedula'],
                             'telefono' => $meta['telefono'],
-                            'campana' => $meta['campana'], // Nombre texto (ej: Claro)
+                            'campana' => $meta['campana'], 
                             'fecha_grabacion' => $meta['fecha'] ?? Carbon::createFromTimestamp($file->getMTime()),
                             'original_created_at' => Carbon::createFromTimestamp($file->getMTime()),
                             'duration' => 0
@@ -177,7 +173,6 @@ class IndexingController extends Controller
                         $processedCount++;
 
                     } catch (QueryException $e) {
-                        // Error 1062 es Duplicate Entry (ya existe)
                         if ($e->errorInfo[1] == 1062) {
                             $skippedCount++;
                         } else {
@@ -192,7 +187,7 @@ class IndexingController extends Controller
 
             return response()->json([
                 'indexed' => $processedCount,
-                'auto_classified' => $autoClassifiedCount, // Dato útil para el frontend
+                'auto_classified' => $autoClassifiedCount, 
                 'inbox_count' => $processedCount - $autoClassifiedCount,
                 'skipped' => $skippedCount,
                 'status_type' => $processedCount > 0 ? 'success' : 'warning',

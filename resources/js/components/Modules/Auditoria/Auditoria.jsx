@@ -143,10 +143,11 @@ const Auditoria = () => {
     };
 
     return (
-        <div className={`container-fluid p-0 ${styles.fadeIn}`}>
+        /* 1. AGREGADA LA CLASE fullHeightContainer PARA BLOQUEAR EL SCROLL GLOBAL */
+        <div className={`container-fluid p-0 ${styles.fadeIn} ${styles.fullHeightContainer}`}>
             <CustomAlert isOpen={alertConfig.isOpen} type={alertConfig.type} title={alertConfig.title} message={alertConfig.message} onClose={closeAlert} />
             
-            <h2 className={`mb-4 ${styles.pageTitle}`}>
+            <h2 className={`mb-3 ${styles.pageTitle}`}>
                 <i className="bi bi-shield-check me-2"></i> Auditoría del Sistema
             </h2>
 
@@ -156,7 +157,7 @@ const Auditoria = () => {
                     <i className="bi bi-funnel me-2"></i> Filtros de Auditoría
                 </div>
 
-                <div className="card-body p-4">
+                <div className="card-body p-3">
                     <form className="row g-3 align-items-end" onSubmit={(e) => e.preventDefault()}>
                         <div className="col-md-3">
                             <label className={styles.label}>Fecha desde</label>
@@ -208,7 +209,7 @@ const Auditoria = () => {
                             </select>
                         </div>
 
-                        <div className="col-12 text-end mt-4">
+                        <div className="col-12 text-end mt-3">
                              <div className="d-inline-flex gap-2">
                                 <button type="button" className="btn btn-outline-secondary px-4" onClick={handleClear}>
                                     <i className="bi bi-eraser me-2"></i>Limpiar
@@ -223,9 +224,14 @@ const Auditoria = () => {
             </div>
 
             {/* --- TABLA DE RESULTADOS --- */}
-            <div className={`card ${styles.cardCustom}`}>
-                <div className="card-body p-0">
-                    <div className={`table-responsive ${styles.tableWrapper}`}>
+            {/* 2. AGREGADA LA CLASE cardTable PARA ESTIRAR EL CONTENEDOR AL FONDO */}
+            <div className={`card ${styles.cardCustom} ${styles.cardTable}`}>
+                
+                {/* 3. CONTENEDOR FLEX PARA LA TABLA Y PAGINACIÓN */}
+                <div className={styles.tableContainer}>
+                    
+                    {/* 4. WRAPPER CON SCROLL INTERNO Y ABSOLUTO */}
+                    <div className={styles.tableWrapper}>
                         <table className="table table-hover mb-0 align-middle">
                             <thead className={styles.tableHeader}>
                                 <tr>
@@ -254,7 +260,6 @@ const Auditoria = () => {
                                             </td>
                                             <td className="text-dark small py-3" style={{maxWidth: '350px'}}>
                                                 <span className="d-block mb-1">{log.details}</span>
-                                                {/* Aquí se renderizará la metadata de cambios de rol/usuario */}
                                                 {renderMetadata(log.metadata)}
                                             </td>
                                         </tr>
@@ -265,42 +270,43 @@ const Auditoria = () => {
                             </tbody>
                         </table>
                     </div>
-                </div>
 
-                {/* --- PAGINACIÓN --- */}
-                <div className="card-footer bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <div className="text-muted small">
-                        {pagination.total > 0 
-                            ? `Mostrando ${pagination.from} a ${pagination.to} de ${pagination.total} registros`
-                            : '0 registros'
-                        }
+                    {/* --- PAGINACIÓN (Anclada abajo por fuera del tableWrapper) --- */}
+                    <div className="card-footer bg-white border-top py-3 px-4 d-flex justify-content-between align-items-center">
+                        <div className="text-muted small">
+                            {pagination.total > 0 
+                                ? `Mostrando ${pagination.from} a ${pagination.to} de ${pagination.total} registros`
+                                : '0 registros'
+                            }
+                        </div>
+                        
+                        <nav>
+                            <ul className="pagination mb-0 gap-1">
+                                <li>
+                                    <button 
+                                        className={`btn btn-sm btn-light border ${pagination.currentPage === 1 ? 'disabled' : ''}`}
+                                        onClick={() => handlePageChange(pagination.currentPage - 1)}
+                                        disabled={pagination.currentPage === 1}
+                                    >
+                                        <i className="bi bi-chevron-left"></i>
+                                    </button>
+                                </li>
+                                <li className="mx-2 d-flex align-items-center">
+                                    <span className="small text-muted">Pág <strong className="text-dark">{pagination.currentPage}</strong> de {pagination.lastPage}</span>
+                                </li>
+                                <li>
+                                    <button 
+                                        className={`btn btn-sm btn-light border ${pagination.currentPage === pagination.lastPage || pagination.total === 0 ? 'disabled' : ''}`}
+                                        onClick={() => handlePageChange(pagination.currentPage + 1)}
+                                        disabled={pagination.currentPage === pagination.lastPage || pagination.total === 0}
+                                    >
+                                        <i className="bi bi-chevron-right"></i>
+                                    </button>
+                                </li>
+                            </ul>
+                        </nav>
                     </div>
-                    
-                    <nav>
-                        <ul className="pagination mb-0 gap-1">
-                            <li>
-                                <button 
-                                    className={`btn btn-sm btn-light border ${pagination.currentPage === 1 ? 'disabled' : ''}`}
-                                    onClick={() => handlePageChange(pagination.currentPage - 1)}
-                                    disabled={pagination.currentPage === 1}
-                                >
-                                    <i className="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                            <li className="mx-2 d-flex align-items-center">
-                                <span className="small text-muted">Pág <strong className="text-dark">{pagination.currentPage}</strong> de {pagination.lastPage}</span>
-                            </li>
-                            <li>
-                                <button 
-                                    className={`btn btn-sm btn-light border ${pagination.currentPage === pagination.lastPage || pagination.total === 0 ? 'disabled' : ''}`}
-                                    onClick={() => handlePageChange(pagination.currentPage + 1)}
-                                    disabled={pagination.currentPage === pagination.lastPage || pagination.total === 0}
-                                >
-                                    <i className="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
+
                 </div>
             </div>
         </div>

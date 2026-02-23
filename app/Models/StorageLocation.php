@@ -11,6 +11,7 @@ class StorageLocation extends Model
     use HasFactory;
 
     protected $fillable = [
+        'type',
         'name',
         'path',
         'description',

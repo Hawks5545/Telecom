@@ -5,13 +5,16 @@ import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 const Configuration = () => {
     
     // --- ESTADOS ---
-    const [activeSection, setActiveSection] = useState('routes'); 
+    const [activeSection, setActiveSection] = useState('inbox_routes'); 
     
-    // Estados para Rutas (Storage Locations)
+    // Estados para Rutas
     const [locations, setLocations] = useState([]); 
     const [newLocation, setNewLocation] = useState({ path: '', name: '' });
     const [isLoadingPath, setIsLoadingPath] = useState(false);
     const [locationSearch, setLocationSearch] = useState(''); 
+    
+    // 🌟 NUEVO ESTADO: Para controlar la animación de carga de la tabla
+    const [isFetchingLocations, setIsFetchingLocations] = useState(false);
 
     // Estados para Preferencias Globales
     const [settings, setSettings] = useState({
@@ -39,17 +42,25 @@ const Configuration = () => {
 
     const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
+    // Manejador limpio para cambiar de pestaña
+    const handleSectionChange = (section) => {
+        setActiveSection(section);
+        setLocationSearch('');
+        setNewLocation({ path: '', name: '' });
+        setLocations([]); 
+    };
+
     // --- CARGAR DATOS AL INICIAR ---
     useEffect(() => {
         fetchSettings(); 
-        if (activeSection === 'routes') {
+        if (activeSection === 'inbox_routes' || activeSection === 'campaign_routes') {
             fetchLocations();
         }
     }, [activeSection]);
 
     // Efecto para buscar en tiempo real
     useEffect(() => {
-        if (activeSection === 'routes') {
+        if (activeSection === 'inbox_routes' || activeSection === 'campaign_routes') {
             const timer = setTimeout(() => {
                 fetchLocations();
             }, 500);
@@ -57,20 +68,30 @@ const Configuration = () => {
         }
     }, [locationSearch]);
 
-    // 1. Obtener Rutas
+    // 1. Obtener Rutas (Lógica Dinámica y con Animación)
     const fetchLocations = async () => {
+        setIsFetchingLocations(true); // Encendemos el Skeleton
+        
         const token = localStorage.getItem('auth_token');
         const params = new URLSearchParams();
         if (locationSearch) params.append('search', locationSearch);
 
+        const endpoint = activeSection === 'inbox_routes' 
+            ? `/api/config/storage/inbox?${params.toString()}` 
+            : `/api/config/storage/campaigns?${params.toString()}`;
+
         try {
-            const response = await fetch(`/api/config/storage?${params.toString()}`, {
+            const response = await fetch(endpoint, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
                 setLocations(await response.json());
             }
-        } catch (error) { console.error("Error cargando rutas:", error); }
+        } catch (error) { 
+            console.error("Error cargando rutas:", error); 
+        } finally {
+            setIsFetchingLocations(false); // Apagamos el Skeleton
+        }
     };
 
     // 2. Obtener Ajustes
@@ -93,8 +114,10 @@ const Configuration = () => {
         
         setIsLoadingPath(true);
         const token = localStorage.getItem('auth_token');
+        const endpoint = activeSection === 'inbox_routes' ? '/api/config/storage/inbox' : '/api/config/storage/campaigns';
+
         try {
-            const response = await fetch('/api/config/storage', {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(newLocation)
@@ -111,20 +134,21 @@ const Configuration = () => {
         finally { setIsLoadingPath(false); }
     };
 
-    // --- LÓGICA DE ELIMINACIÓN CON ALERTA PERSONALIZADA ---
     const handleDeleteLocation = (id) => {
         showAlert(
             'warning', 
             'Eliminar Ruta', 
-            '¿Estás seguro de que deseas eliminar esta ruta? El sistema dejará de indexar archivos de aquí.',
+            '¿Estás seguro de que deseas eliminar esta ruta? El sistema dejará de sincronizar archivos de aquí.',
             () => executeDeleteLocation(id)
         );
     };
 
     const executeDeleteLocation = async (id) => {
         const token = localStorage.getItem('auth_token');
+        const endpoint = activeSection === 'inbox_routes' ? `/api/config/storage/inbox/${id}` : `/api/config/storage/campaigns/${id}`;
+
         try {
-            const response = await fetch(`/api/config/storage/${id}`, {
+            const response = await fetch(endpoint, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -157,84 +181,101 @@ const Configuration = () => {
     };
 
     // --- RENDERIZADO DE SECCIONES ---
-    const renderRoutesConfig = () => (
-        <div className={styles.sectionContainer}>
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4 className={styles.sectionSubtitle}>Rutas de Importación</h4>
-            </div>
-            
-            {/* Formulario */}
-            <div className="card p-4 mb-4 border-0 shadow-sm bg-light">
-                <h6 className="fw-bold text-dark mb-3"><i className="bi bi-folder-plus me-2"></i>Agregar Nueva Ubicación</h6>
-                <div className="row g-2 align-items-end">
-                    <div className="col-md-4">
-                        <label className="small fw-bold text-secondary">Nombre (Alias)</label>
-                        <input type="text" className="form-control" placeholder="Ej: Disco Z - Histórico"
-                            value={newLocation.name} onChange={(e) => setNewLocation({...newLocation, name: e.target.value})} />
-                    </div>
-                    <div className="col-md-6">
-                        <label className="small fw-bold text-secondary">Ruta Absoluta</label>
-                        <input type="text" className="form-control" placeholder="Ej: /mnt/datos/ o Z:/"
-                            value={newLocation.path} onChange={(e) => setNewLocation({...newLocation, path: e.target.value})} />
-                    </div>
-                    <div className="col-md-2">
-                        {/* BOTÓN CON CLASE PERSONALIZADA CORPORATIVA */}
-                        <button className={styles.btnAdd} onClick={handleAddLocation} disabled={isLoadingPath}>
-                            {isLoadingPath ? '...' : 'Agregar'}
-                        </button>
-                    </div>
-                </div>
-            </div>
+    const renderLocationsConfig = () => {
+        const isInbox = activeSection === 'inbox_routes';
+        const title = isInbox ? 'Bandejas de Entrada (Importaciones)' : 'Carpetas Madre (Campañas)';
+        const inputPlaceholderName = isInbox ? 'Ej: Importaciones Diarias' : 'Ej: Campaña Retención 2026';
 
-            {/* Tabla con Buscador */}
-            <div className="card border-0 shadow-sm mb-4">
-                <div className="card-header bg-white py-3">
-                    <div className="input-group input-group-sm" style={{ maxWidth: '400px' }}>
-                        <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
-                        <input 
-                            type="text" 
-                            className="form-control border-start-0 ps-0" 
-                            placeholder="Buscar por nombre, ruta o fecha..." 
-                            value={locationSearch}
-                            onChange={(e) => setLocationSearch(e.target.value)}
-                        />
+        return (
+            <div className={styles.sectionContainer}>
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h4 className={styles.sectionSubtitle}>{title}</h4>
+                </div>
+                
+                {/* Formulario */}
+                <div className="card p-4 mb-4 border-0 shadow-sm bg-light">
+                    <h6 className="fw-bold text-dark mb-3"><i className="bi bi-folder-plus me-2"></i>Agregar Nueva Ubicación</h6>
+                    <div className="row g-2 align-items-end">
+                        <div className="col-md-4">
+                            <label className="small fw-bold text-secondary">Nombre (Alias)</label>
+                            <input type="text" className="form-control" placeholder={inputPlaceholderName}
+                                value={newLocation.name} onChange={(e) => setNewLocation({...newLocation, name: e.target.value})} />
+                        </div>
+                        <div className="col-md-6">
+                            <label className="small fw-bold text-secondary">Ruta Absoluta</label>
+                            <input type="text" className="form-control" placeholder="Ej: /mnt/datos/ o Z:/"
+                                value={newLocation.path} onChange={(e) => setNewLocation({...newLocation, path: e.target.value})} />
+                        </div>
+                        <div className="col-md-2">
+                            <button className={styles.btnAdd} onClick={handleAddLocation} disabled={isLoadingPath}>
+                                {isLoadingPath ? '...' : 'Agregar'}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div className="card-body p-0">
-                    <div className="table-responsive">
-                        <table className="table table-hover mb-0 align-middle">
-                            {/* AQUI APLICAMOS LA CLASE TABLEHEADER DEL CSS */}
-                            <thead className={styles.tableHeader}>
-                                <tr>
-                                    <th className="ps-4 py-3">Nombre</th>
-                                    <th>Ruta</th>
-                                    <th>Fecha Creación</th>
-                                    <th>Estado</th>
-                                    <th className="text-end pe-4">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {locations.length === 0 ? (
-                                    <tr><td colSpan="5" className="text-center py-4 text-muted">No se encontraron rutas.</td></tr>
-                                ) : locations.map(loc => (
-                                    <tr key={loc.id}>
-                                        <td className="ps-4 fw-bold">{loc.name}</td>
-                                        <td className="text-muted small font-monospace">{loc.path}</td>
-                                        <td className="small text-secondary">{new Date(loc.created_at).toLocaleString()}</td>
-                                        <td><span className={`badge ${loc.is_active ? 'bg-success' : 'bg-secondary'}`}>{loc.is_active ? 'Activo' : 'Inactivo'}</span></td>
-                                        <td className="text-end pe-4">
-                                            <button className="btn btn-sm btn-outline-danger border-0" onClick={() => handleDeleteLocation(loc.id)}><i className="bi bi-trash"></i></button>
-                                        </td>
+                {/* Tabla con Buscador */}
+                <div className="card border-0 shadow-sm mb-4">
+                    <div className="card-header bg-white py-3">
+                        <div className="input-group input-group-sm" style={{ maxWidth: '400px' }}>
+                            <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
+                            <input 
+                                type="text" 
+                                className="form-control border-start-0 ps-0" 
+                                placeholder="Buscar por nombre, ruta o fecha..." 
+                                value={locationSearch}
+                                onChange={(e) => setLocationSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="card-body p-0">
+                        <div className="table-responsive">
+                            <table className="table table-hover mb-0 align-middle">
+                                <thead className={styles.tableHeader}>
+                                    <tr>
+                                        <th className="ps-4 py-3">Nombre</th>
+                                        <th>Ruta</th>
+                                        <th>Fecha Creación</th>
+                                        <th>Estado</th>
+                                        <th className="text-end pe-4">Acciones</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {/* 🌟 LÓGICA DE SKELETON UI IMPLEMENTADA AQUÍ */}
+                                    {isFetchingLocations ? (
+                                        Array.from({ length: 3 }).map((_, idx) => (
+                                            <tr key={idx} className="placeholder-glow">
+                                                <td className="ps-4 py-3"><span className="placeholder col-8 rounded"></span></td>
+                                                <td><span className="placeholder col-10 rounded"></span></td>
+                                                <td><span className="placeholder col-6 rounded"></span></td>
+                                                <td><span className="placeholder col-4 rounded"></span></td>
+                                                <td className="text-end pe-4"><span className="placeholder col-3 rounded bg-secondary"></span></td>
+                                            </tr>
+                                        ))
+                                    ) : locations.length === 0 ? (
+                                        <tr><td colSpan="5" className="text-center py-5 text-muted"><i className="bi bi-folder-x fs-4 d-block mb-2 text-secondary opacity-50"></i>No se encontraron rutas configuradas.</td></tr>
+                                    ) : (
+                                        locations.map(loc => (
+                                            <tr key={loc.id}>
+                                                <td className="ps-4 fw-bold">{loc.name}</td>
+                                                <td className="text-muted small font-monospace">{loc.path}</td>
+                                                <td className="small text-secondary">{new Date(loc.created_at).toLocaleString()}</td>
+                                                <td><span className={`badge ${loc.is_active ? 'bg-success' : 'bg-secondary'}`}>{loc.is_active ? 'Activo' : 'Inactivo'}</span></td>
+                                                <td className="text-end pe-4">
+                                                    <button className="btn btn-sm btn-outline-danger border-0" onClick={() => handleDeleteLocation(loc.id)}><i className="bi bi-trash"></i></button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderStorageConfig = () => (
         <div className={styles.sectionContainer}>
@@ -353,7 +394,9 @@ const Configuration = () => {
 
     const renderContent = () => {
         switch (activeSection) {
-            case 'routes': return renderRoutesConfig();
+            case 'inbox_routes': 
+            case 'campaign_routes': 
+                return renderLocationsConfig();
             case 'storage': return renderStorageConfig();
             case 'sync': return renderSyncConfig();
             case 'notifications': return renderNotificationsConfig();
@@ -376,16 +419,20 @@ const Configuration = () => {
             <div className={styles.layoutWrapper}>
                 <aside className={styles.sidebar}>
                     <nav className={styles.nav}>
-                        <button className={`${styles.navItem} ${activeSection === 'routes' ? styles.navActive : ''}`} onClick={() => setActiveSection('routes')}>
-                            <i className="bi bi-signpost-split me-2"></i> Rutas
+                        <button className={`${styles.navItem} ${activeSection === 'inbox_routes' ? styles.navActive : ''}`} onClick={() => handleSectionChange('inbox_routes')}>
+                            <i className="bi bi-inbox me-2"></i> Bandejas de Entrada
                         </button>
-                        <button className={`${styles.navItem} ${activeSection === 'storage' ? styles.navActive : ''}`} onClick={() => setActiveSection('storage')}>
+                        <button className={`${styles.navItem} ${activeSection === 'campaign_routes' ? styles.navActive : ''}`} onClick={() => handleSectionChange('campaign_routes')}>
+                            <i className="bi bi-folder-symlink me-2"></i> Campañas Comerciales
+                        </button>
+
+                        <button className={`${styles.navItem} ${activeSection === 'storage' ? styles.navActive : ''}`} onClick={() => handleSectionChange('storage')}>
                             <i className="bi bi-hdd-rack me-2"></i> Almacenamiento
                         </button>
-                        <button className={`${styles.navItem} ${activeSection === 'sync' ? styles.navActive : ''}`} onClick={() => setActiveSection('sync')}>
+                        <button className={`${styles.navItem} ${activeSection === 'sync' ? styles.navActive : ''}`} onClick={() => handleSectionChange('sync')}>
                             <i className="bi bi-arrow-repeat me-2"></i> Sincronización
                         </button>
-                        <button className={`${styles.navItem} ${activeSection === 'notifications' ? styles.navActive : ''}`} onClick={() => setActiveSection('notifications')}>
+                        <button className={`${styles.navItem} ${activeSection === 'notifications' ? styles.navActive : ''}`} onClick={() => handleSectionChange('notifications')}>
                             <i className="bi bi-bell me-2"></i> Alertas
                         </button>
                     </nav>

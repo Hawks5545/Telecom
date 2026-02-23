@@ -70,10 +70,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
 
     // Configuración
-    Route::get('/config/storage', [ConfigurationController::class, 'getStorageLocations']);
-    Route::post('/config/storage', [ConfigurationController::class, 'addStorageLocation']);
-    Route::delete('/config/storage/{id}', [ConfigurationController::class, 'deleteStorageLocation']);
-    Route::put('/config/storage/{id}/toggle', [ConfigurationController::class, 'toggleStorageLocation']);
+    // 1. Bandejas de Entrada (Importaciones)
+    Route::get('/config/storage/inbox', [ConfigurationController::class, 'getInboxLocations']);
+    Route::post('/config/storage/inbox', [ConfigurationController::class, 'addInboxLocation']);
+    Route::delete('/config/storage/inbox/{id}', [ConfigurationController::class, 'deleteInboxLocation']);
+    Route::put('/config/storage/inbox/{id}/toggle', [ConfigurationController::class, 'toggleInboxLocation']);
+
+    // 2. Carpetas Madre (Campañas)
+    Route::get('/config/storage/campaigns', [ConfigurationController::class, 'getCampaignLocations']);
+    Route::post('/config/storage/campaigns', [ConfigurationController::class, 'addCampaignLocation']);
+    Route::delete('/config/storage/campaigns/{id}', [ConfigurationController::class, 'deleteCampaignLocation']);
+    Route::put('/config/storage/campaigns/{id}/toggle', [ConfigurationController::class, 'toggleCampaignLocation']);
+
+    // 3. Preferencias Globales
     Route::get('/config/settings', [ConfigurationController::class, 'getSettings']);
     Route::post('/config/settings', [ConfigurationController::class, 'saveSettings']);
 });

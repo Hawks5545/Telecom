@@ -10,7 +10,7 @@ use ZipArchive;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache; // NUEVO: Importar Cache
+use Illuminate\Support\Facades\Cache; 
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -28,11 +28,8 @@ class FolderManagerController extends Controller
         // NIVEL 0: LISTAR CARPETAS MADRE (AHORA CON CACHÉ)
         if ($parentId === 0) {
             
-            // Creamos una llave de caché única basada en los filtros
             $cacheKey = "folders_list_{$viewType}_" . md5($search . $dateFrom . $dateTo);
             
-            // Si no hay filtros complejos (búsqueda o fechas), guardamos en caché por 5 minutos.
-            // Esto evita que MySQL colapse intentando hacer COUNT y SUM de millones de registros al vuelo.
             $cacheTime = ($search || $dateFrom || $dateTo) ? 0 : 300; 
 
             $folders = Cache::remember($cacheKey, $cacheTime, function () use ($search, $dateFrom, $dateTo, $viewType) {
@@ -41,22 +38,23 @@ class FolderManagerController extends Controller
                     ->withCount('recordings as items_count')
                     ->withSum('recordings as total_size', 'size');
 
+                // --- LÓGICA CORREGIDA Y DINÁMICA ---
+                // Si la pestaña es "Campañas" (virtual), buscamos type='campaign'
+                // Si la pestaña es "Bandejas" (física), buscamos type='inbox'
+                if ($viewType === 'virtual') {
+                    $query->where('type', 'campaign');
+                } else {
+                    $query->where('type', 'inbox');
+                }
+
                 if ($search) {
                     $query->where('name', 'like', "%{$search}%");
                 }
                 if ($dateFrom) $query->where('created_at', '>=', Carbon::parse($dateFrom)->startOfDay());
                 if ($dateTo) $query->where('created_at', '<=', Carbon::parse($dateTo)->endOfDay());
 
-                // Filtro rápido de tipo de carpeta usando índices
-                if ($viewType === 'virtual') {
-                    $query->where('path', 'like', 'VIRTUAL/%');
-                } else {
-                    $query->where('path', 'not like', 'VIRTUAL/%');
-                }
-
                 $locations = $query->orderBy('name', 'asc')->get();
 
-                // Mapeamos aquí para que el caché ya guarde el array final procesado
                 return $locations->map(function($loc) {
                     return [
                         'id' => $loc->id,
@@ -64,10 +62,10 @@ class FolderManagerController extends Controller
                         'name' => $loc->name,
                         'type' => 'folder',
                         'items' => $loc->items_count,
-                        'size_bytes' => (int) $loc->total_size ?? 0, // Asegurar que sea entero
+                        'size_bytes' => (int) $loc->total_size ?? 0, 
                         'date' => $loc->created_at->format('Y-m-d'),
                         'path' => $loc->path,
-                        'is_virtual' => str_starts_with($loc->path, 'VIRTUAL/')
+                        'is_virtual' => $loc->type === 'campaign' // Actualizado para usar la columna real
                     ];
                 });
             });
@@ -76,14 +74,12 @@ class FolderManagerController extends Controller
         }
 
         // NIVEL 1: LISTAR ARCHIVOS DENTRO DE UNA CARPETA
-        // Aquí NO usamos caché porque necesitamos paginación en tiempo real y resultados exactos
         $query = Recording::where('storage_location_id', $parentId);
 
         if ($search) {
-            // Optimización: Agrupamos los OR para que no rompan la consulta principal
              $query->where(function($q) use ($search) {
                 $q->where('filename', 'like', "%{$search}%")
-                  ->orWhere('cedula', 'like', "{$search}%") // Quitamos el % inicial en cédula si es posible usar el índice
+                  ->orWhere('cedula', 'like', "{$search}%") 
                   ->orWhere('telefono', 'like', "{$search}%");
             });
         }
@@ -125,6 +121,7 @@ class FolderManagerController extends Controller
             $virtualPath = 'VIRTUAL/' . Str::slug($request->name, '_') . '_' . time();
 
             $folder = StorageLocation::create([
+                'type' => 'campaign', 
                 'name' => $request->name,
                 'path' => $virtualPath,
                 'is_active' => true,
@@ -133,7 +130,6 @@ class FolderManagerController extends Controller
 
             $this->logAudit('Crear Carpeta', "Nueva campaña virtual: {$request->name}", $request);
             
-            // LIMPIAR CACHÉ AL CREAR
             Cache::flush(); 
 
             return response()->json([
@@ -163,7 +159,6 @@ class FolderManagerController extends Controller
 
         $this->logAudit('Eliminar Carpeta', "Eliminó la carpeta: {$folderName}", $request);
         
-        // LIMPIAR CACHÉ AL ELIMINAR
         Cache::flush();
 
         return response()->json(['message' => 'Carpeta eliminada correctamente.']);
@@ -183,13 +178,10 @@ class FolderManagerController extends Controller
 
         $this->logAudit('Renombrar Carpeta', "Cambió nombre de '{$oldName}' a '{$request->name}'", $request);
         
-        // LIMPIAR CACHÉ AL EDITAR
         Cache::flush();
 
         return response()->json(['message' => 'Carpeta actualizada.', 'folder' => $folder]);
     }
-
-    // ... (El resto de tus métodos downloadItem, downloadFolder y logAudit se mantienen idénticos) ...
     
     // --- 5. DESCARGA INDIVIDUAL ---
     public function downloadItem(Request $request, $id)

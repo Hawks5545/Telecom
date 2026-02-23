@@ -3,18 +3,16 @@ import ReactDOM from 'react-dom';
 import styles from './ForgotPassword.module.css';
 
 const ForgotPasswordModal = ({ isOpen, onClose }) => {
-    const [email, setEmail] = useState('');
-    
-    // Estados nuevos para manejar la respuesta del servidor
+    // ESTADO: Cambiamos de 'email' a 'loginId'
+    const [loginId, setLoginId] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState(null); 
     const [error, setError] = useState(null);    
 
     if (!isOpen) return null;
 
-    // Función para limpiar estados al cerrar
     const handleClose = () => {
-        setEmail('');
+        setLoginId('');
         setMessage(null);
         setError(null);
         setIsLoading(false);
@@ -28,26 +26,26 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
         setMessage(null);
 
         try {
-            // 1. Petición al Backend
+            // 1. Petición al Backend (ahora enviamos 'login_id')
             const response = await fetch('/api/forgot-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({ email })
+                body: JSON.stringify({ login_id: loginId }) // Clave unificada para el backend
             });
 
             const data = await response.json();
 
-            // 2. Manejo de respuesta
+            // 2. Manejo de respuesta (Seguridad Anti-Enumeración)
             if (response.ok) {
-                // Éxito: El correo existe y se envió el link
-                setMessage(data.message || '¡Enlace enviado! Revisa tu correo.');
-                setEmail(''); // Limpiamos el campo para que no envíen doble
+                // Éxito: Mostramos el mensaje genérico y seguro que manda Laravel
+                setMessage(data.message || 'Si los datos coinciden, hemos enviado un enlace a tu correo.');
+                setLoginId(''); 
             } else {
-                // Error: El correo no existe o falló el servidor
-                setError(data.message || 'No pudimos encontrar ese correo.');
+                // Errores de servidor o de validación (ej. rate limit)
+                setError(data.message || 'Ocurrió un error procesando la solicitud.');
             }
 
         } catch (err) {
@@ -64,11 +62,11 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                 
                 <header className={styles.modalHeader}>
                     <div className={styles.iconContainer}>
-                        <i className={`bi ${message ? 'bi-check-circle-fill text-success' : 'bi-envelope-exclamation'}`}></i>
+                        <i className={`bi ${message ? 'bi-shield-check text-success' : 'bi-envelope-exclamation'}`}></i>
                     </div>
                     <h3 className={styles.title}>Recuperar Contraseña</h3>
                     <p className={styles.description}>
-                        Ingresa tu correo electrónico y te enviaremos las instrucciones para restablecer tu acceso.
+                        Ingresa tu <strong>correo electrónico</strong> o tu <strong>número de cédula</strong>. Si los datos coinciden con un usuario activo, enviaremos las instrucciones de acceso al correo registrado.
                     </p>
                 </header>
 
@@ -87,18 +85,18 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                 <form onSubmit={handleSubmit}>
                     <div className={styles.inputGroup}>
                         <input
-                            type="email"
-                            id="recoveryEmail"
+                            type="text" 
+                            id="recoveryInput"
                             className={styles.floatingInput}
                             placeholder=" "
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            value={loginId}
+                            onChange={(e) => setLoginId(e.target.value)}
                             required
                             autoFocus
-                            disabled={isLoading} // Bloqueamos si está cargando
+                            disabled={isLoading}
                         />
-                        <label htmlFor="recoveryEmail" className={styles.floatingLabel}>
-                            Correo electrónico
+                        <label htmlFor="recoveryInput" className={styles.floatingLabel}>
+                            Correo electrónico o Cédula
                         </label>
                     </div>
 
@@ -112,14 +110,13 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                             {message ? 'Cerrar' : 'Cancelar'}
                         </button>
                         
-                        {/* Ocultamos el botón de enviar si ya fue exitoso para que no reenvíen */}
                         {!message && (
                             <button 
                                 type="submit" 
                                 className={styles.btnSend}
                                 disabled={isLoading}
                             >
-                                {isLoading ? 'Enviando...' : (
+                                {isLoading ? 'Procesando...' : (
                                     <>Enviar Enlace <i className="bi bi-send-fill ms-2"></i></>
                                 )}
                             </button>

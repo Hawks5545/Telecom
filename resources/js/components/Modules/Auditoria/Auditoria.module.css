@@ -1,5 +1,3 @@
-/* resources/js/components/Modules/Auditoria/Auditoria.module.css */
-
 /* --- ANIMACIONES --- */
 .fadeIn { 
     animation: fadeIn 0.5s ease-out; 
@@ -10,11 +8,23 @@
     to { opacity: 1; transform: translateY(0); } 
 }
 
+/* --- ESTRUCTURA DE PANTALLA COMPLETA SIN SCROLL GLOBAL --- */
+.fullHeightContainer {
+    /* Ajusta el 90px según el alto de tu barra de navegación superior.
+       Si sigues viendo un pequeño scroll, cámbialo a 110px o 120px */
+    height: calc(100vh - 90px); 
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Corta el scroll de la página principal */
+    width: 100%;
+}
+
 /* --- TEXTOS Y TÍTULOS --- */
 .pageTitle { 
     color: #005461; 
     font-weight: 700; 
-    margin-bottom: 1.5rem; 
+    margin-bottom: 1rem; 
+    font-size: 1.5rem;
 }
 
 .label {
@@ -28,18 +38,35 @@
 /* --- CARDS Y CONTENEDORES --- */
 .cardCustom {
     border: none;
-    border-radius: 15px;
+    border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     overflow: hidden;
     background-color: white;
+    width: 100%;
 }
 
 .cardHeader {
     background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
     color: white;
     font-weight: 600;
-    padding: 1rem 1.5rem;
+    padding: 0.8rem 1.2rem;
+}
+
+/* --- CONTENEDOR DE LA TABLA (LA MAGIA FLEXBOX) --- */
+.cardTable {
+    display: flex;
+    flex-direction: column;
+    flex: 1; /* Esto obliga a la card a estirarse hasta el final de la pantalla */
+    margin-bottom: 0 !important; 
+}
+
+.tableContainer {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 /* --- BOTONES Y ACCIONES --- */
@@ -51,6 +78,9 @@
     padding: 0.5rem 2rem;
     border-radius: 8px;
     transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btnFilter:hover { 
@@ -58,25 +88,21 @@
     transform: translateY(-2px); 
 }
 
-/* --- TABLA Y SCROLL --- */
+/* --- TABLA Y SCROLL RESPONSIVO --- */
 .tableWrapper {
-    max-height: 55vh;
+    flex: 1; /* Esto reemplaza tu antiguo max-height y evita el doble scroll */
     overflow-y: auto;
-    position: relative;
+    overflow-x: auto; /* Evita que la tabla rompa la pantalla en celulares */
 }
 
 .tableWrapper::-webkit-scrollbar { 
-    width: 6px; 
+    width: 8px; 
+    height: 8px; 
 }
 
-.tableWrapper::-webkit-scrollbar-track { 
-    background: #f8f9fa; 
-}
-
-.tableWrapper::-webkit-scrollbar-thumb { 
-    background: #ccc; 
-    border-radius: 10px; 
-}
+.tableWrapper::-webkit-scrollbar-track { background: #f8f9fa; }
+.tableWrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+.tableWrapper::-webkit-scrollbar-thumb:hover { background: #bbb; }
 
 .tableHeader th {
     position: sticky;
@@ -86,49 +112,29 @@
     color: white;
     font-weight: 600;
     border: none;
+    white-space: nowrap; 
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
 }
 
 /* --- BADGES DE ESTADO ORIGINALES --- */
-.badgeLogin { 
-    background-color: #e3f2fd; 
-    color: #0d6efd; 
-    border: 1px solid #9ec5fe; 
-}
+.badgeLogin { background-color: #e3f2fd; color: #0d6efd; border: 1px solid #9ec5fe; }
+.badgeDownload { background-color: #d1e7dd; color: #0f5132; border: 1px solid #a3cfbb; }
+.badgeDelete { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+.badgeUpdate { background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; }
+.badgeSystem { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
 
-.badgeDownload { 
-    background-color: #d1e7dd; 
-    color: #0f5132; 
-    border: 1px solid #a3cfbb; 
-}
-
-.badgeDelete { 
-    background-color: #f8d7da; 
-    color: #842029; 
-    border: 1px solid #f5c2c7; 
-}
-
-.badgeUpdate { 
-    background-color: #fff3cd; 
-    color: #664d03; 
-    border: 1px solid #ffecb5; 
-}
-
-/* --- BADGE NUEVO (Agregado para acciones del sistema como Indexación o Crear Carpetas) --- */
-.badgeSystem { 
-    background-color: #e2e3e5; 
-    color: #383d41; 
-    border: 1px solid #d6d8db; 
-}
-
-/* --- BLOQUE DE METADATA NUEVO (Para mostrar los JSON de cambios de usuarios/roles) --- */
+/* --- BLOQUE DE METADATA (TUS ESTILOS DE DETALLE RESPETADOS) --- */
 .metaContainer {
     margin-top: 6px;
     padding: 6px 10px;
     background-color: #f8f9fa;
-    border-left: 3px solid #3BC1A8; /* Usando tu verde corporativo */
+    border-left: 3px solid #3BC1A8;
     border-radius: 4px;
     font-size: 0.75rem;
     color: #546e7a;
+    word-break: break-word; 
 }
 
 .metaBadge {
@@ -157,16 +163,41 @@
     transition: all 0.2s;
 }
 
-.paginationBtn:hover { 
-    background-color: #eef2f3; 
-}
+.paginationBtn:hover { background-color: #eef2f3; }
+.paginationBtnActive { background-color: #3BC1A8 !important; color: white !important; }
+.paginationBtnDisabled { opacity: 0.4; cursor: not-allowed; }
 
-.paginationBtnActive { 
-    background-color: #3BC1A8 !important; 
-    color: white !important; 
-}
+/* =========================================================
+   REGLAS RESPONSIVAS (MÓVILES Y TABLETS)
+========================================================= */
+@media (max-width: 768px) {
+    .fullHeightContainer {
+        height: auto; /* Permite scroll natural en celular porque el alto de la pantalla no da */
+        overflow: visible;
+    }
 
-.paginationBtnDisabled { 
-    opacity: 0.4; 
-    cursor: not-allowed; 
+    .cardTable {
+        flex: none; /* Quitamos la obligación de estirarse en móviles */
+    }
+
+    .pageTitle {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .cardHeader {
+        padding: 0.8rem 1rem;
+        font-size: 0.95rem;
+    }
+
+    /* En celulares, el botón de filtrar ocupa todo el ancho disponible para ser fácil de tocar */
+    .btnFilter {
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .tableWrapper {
+        /* Le damos un alto máximo a la tabla en celular para que no sea infinita */
+        max-height: 500px; 
+    }
 }
