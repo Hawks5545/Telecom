@@ -12,7 +12,8 @@ const Indexing = () => {
         ultima: '---'
     });
 
-    const [folderPath, setFolderPath] = useState('C:/laragon/www/Telecomu/public/storage/audios_prueba'); 
+    // Ruta vacía por defecto
+    const [folderPath, setFolderPath] = useState(''); 
     const [isScanning, setIsScanning] = useState(false);
     const [isIndexing, setIsIndexing] = useState(false);
     
@@ -82,7 +83,6 @@ const Indexing = () => {
 
     // --- 5. ACCIÓN: INDEXAR (FASE 2) ---
     const handleIndex = async () => {
-        // VALIDACIÓN: Si no ha escaneado o no encontró nada
         if (stats.peso === '---' || stats.detectadas === 0) {
             return showAlert(
                 'warning',
@@ -115,7 +115,7 @@ const Indexing = () => {
                 const today = new Date().toISOString().slice(0,10);
                 setStats(prev => ({ 
                     ...prev, 
-                    indexadas: data.total_in_db, // Total real en BD
+                    indexadas: data.total_in_db, 
                     ultima: today 
                 }));
                 
@@ -124,9 +124,8 @@ const Indexing = () => {
                 if (data.indexed > 0) addLog('success', `✅ Nuevos indexados: ${data.indexed}`);
                 if (data.skipped > 0) addLog('warning', `⏭️ Omitidos (Duplicados): ${data.skipped}`);
                 
-                // --- AQUI ESTA EL CAMBIO: Usamos los datos dinámicos del backend ---
                 showAlert(
-                    data.status_type || 'success', // Usa 'warning' si lo manda el backend
+                    data.status_type || 'success', 
                     data.title_msg || 'Proceso Finalizado', 
                     data.message || `Se procesaron ${data.indexed} archivos.`
                 );
@@ -144,7 +143,7 @@ const Indexing = () => {
     };
 
     return (
-        <div className={`container-fluid p-0 ${styles.fadeIn}`}>
+        <div className={`container-fluid p-0 ${styles.fadeIn} ${styles.fullHeightContainer}`}>
             
             <CustomAlert 
                 isOpen={alertConfig.isOpen}
@@ -155,33 +154,33 @@ const Indexing = () => {
                 onConfirm={alertConfig.onConfirm}
             />
 
-            <h2 className={`mb-4 ${styles.pageTitle}`}>
+            <h2 className={`mb-3 ${styles.pageTitle}`}>
                 <i className="bi bi-database-gear me-2"></i>
                 Módulo de Indexación
             </h2>
             
-            {/* SECCIÓN 1: ESTADO DEL SISTEMA */}
-            <div className={`card ${styles.cardCustom}`}>
+            {/* --- SECCIÓN 1: ESTADÍSTICAS --- */}
+            <div className={`card ${styles.cardCustom} mb-3`}>
                 <div className={styles.cardHeader}>
                     <i className="bi bi-activity me-2"></i> Estado del Proceso Actual
                 </div>
-                <div className="card-body p-4">
-                    <div className="row g-4">
-                        <div className="col-md-3">
+                <div className="card-body p-3">
+                    <div className="row g-3">
+                        <div className="col-6 col-md-3">
                             <div className={styles.statCard}>
                                 <i className={`bi bi-search ${styles.statIcon}`}></i>
                                 <div className={styles.statTitle}>Detectadas (Scan)</div>
                                 <div className={styles.statValue}>{stats.detectadas}</div>
                             </div>
                         </div>
-                        <div className="col-md-3">
+                        <div className="col-6 col-md-3">
                             <div className={styles.statCard}>
                                 <i className={`bi bi-database-check ${styles.statIcon}`}></i>
                                 <div className={styles.statTitle}>Total en BD</div>
                                 <div className={styles.statValue}>{stats.indexadas}</div>
                             </div>
                         </div>
-                        <div className="col-md-3">
+                        <div className="col-6 col-md-3">
                             <div className={styles.statCard}>
                                 <i className={`bi bi-hdd ${styles.statIcon}`}></i>
                                 <div className={styles.statTitle}>Peso Carpeta</div>
@@ -190,111 +189,122 @@ const Indexing = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="col-md-3">
+                        <div className="col-6 col-md-3">
                             <div className={styles.statCard}>
                                 <i className={`bi bi-calendar-check ${styles.statIcon}`}></i>
                                 <div className={styles.statTitle}>Última Indexación</div>
-                                <div className={styles.statValue} style={{fontSize: '1.2rem', marginTop: '5px'}}>{stats.ultima}</div>
+                                <div className={styles.statValue} style={{fontSize: '1.1rem', marginTop: '5px'}}>{stats.ultima}</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* SECCIÓN 2: CARPETA */}
-            <div className={`card ${styles.cardCustom}`}>
+            {/* --- SECCIÓN 2: CARPETA DEL SERVIDOR (TODO EL ANCHO) --- */}
+            <div className={`card ${styles.cardCustom} mb-3`}>
                 <div className={styles.cardHeader}>
                     <i className="bi bi-folder-symlink me-2"></i> Carpeta del Servidor
                 </div>
-                <div className="card-body p-4">
+                <div className="card-body p-3">
                     <label className={styles.label}>Ruta absoluta (Ej: C:\audios o /mnt/grabaciones)</label>
-                    <div className="input-group mb-3">
-                        <span className="input-group-text bg-light"><i className="bi bi-terminal"></i></span>
+                    <div className="input-group mb-1">
+                        <span className="input-group-text bg-light d-none d-sm-flex"><i className="bi bi-terminal"></i></span>
                         <input 
                             type="text" 
                             className="form-control" 
                             value={folderPath}
                             onChange={(e) => setFolderPath(e.target.value)}
-                            placeholder="Ingresa la ruta de la carpeta a escanear"
+                            placeholder="Ingresa la ruta a escanear"
                         />
                         <button 
                             className={`btn ${styles.btnScan}`} 
                             onClick={handleScan}
                             disabled={isScanning || isIndexing}
                         >
-                            {isScanning ? 'Escaneando...' : 'Escanear Carpeta'}
+                            {isScanning ? 'Escaneando...' : 'Escanear'}
                         </button>
                     </div>
-                    <div className="form-text text-muted">
-                        Nota: Asegúrate de que la carpeta tenga permisos de lectura para el servidor web.
+                    <div className="form-text text-muted" style={{fontSize: '0.8rem'}}>
+                        Asegúrate de que la ruta tenga permisos de lectura.
                     </div>
                 </div>
             </div>
 
-            {/* SECCIÓN 3: OPCIONES Y ACCIÓN */}
-            <div className={`card ${styles.cardCustom}`}>
-                <div className={styles.cardHeader}>
-                    <i className="bi bi-sliders me-2"></i> Opciones de Indexación
-                </div>
-                <div className="card-body p-4">
-                    <div className="mb-4">
-                        <div className="form-check mb-2">
-                            <input className="form-check-input" type="checkbox" checked={options.skipDuplicates} onChange={() => setOptions({...options, skipDuplicates: !options.skipDuplicates})} />
-                            <label className={`form-check-label ${styles.checkboxLabel}`}>Omitir grabaciones duplicadas (recomendado)</label>
+            {/* --- SECCIÓN 3 Y 4: OPCIONES Y CONSOLA (LADO A LADO) --- */}
+            <div className="row g-3 flex-grow-1 overflow-hidden" style={{ minHeight: 0, paddingBottom: '1rem' }}>
+                
+                {/* COLUMNA IZQUIERDA: OPCIONES */}
+                <div className="col-md-5 d-flex flex-column">
+                    <div className={`card ${styles.cardCustom} mb-0 flex-grow-1 d-flex flex-column`}>
+                        <div className={styles.cardHeader}>
+                            <i className="bi bi-sliders me-2"></i> Opciones de Indexación
                         </div>
-                        <div className="form-check mb-2">
-                            <input className="form-check-input" type="checkbox" checked={options.onlyNew} readOnly />
-                            <label className={`form-check-label ${styles.checkboxLabel}`}>Indexar solo archivos nuevos</label>
-                        </div>
-                        <div className="form-check mb-2">
-                            <input className="form-check-input" type="checkbox" checked={options.associateFolder} readOnly />
-                            <label className={`form-check-label ${styles.checkboxLabel}`}>Asociar a estructura de carpetas del sistema</label>
-                        </div>
-                    </div>
-
-                    <button 
-                        className={`btn ${styles.btnIndex}`} 
-                        onClick={handleIndex}
-                        disabled={isScanning || isIndexing || stats.detectadas === 0}
-                    >
-                        {isIndexing ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2"></span>
-                                Indexando...
-                            </>
-                        ) : (
-                            <>
-                                <i className="bi bi-play-circle-fill me-2"></i> Iniciar Indexación
-                            </>
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {/* SECCIÓN 4: LOGS */}
-            <div className={`card ${styles.cardCustom}`}>
-                <div className={styles.cardHeader}>
-                    <i className="bi bi-journal-code me-2"></i> Resultado / Logs
-                </div>
-                <div className="card-body p-3">
-                    <div className={styles.consoleContainer}>
-                        {logs.length === 0 && <span className="text-muted small">Sin actividad reciente.</span>}
-                        {logs.map((log, index) => (
-                            <div key={index} className="mb-1">
-                                <span className="text-muted small me-2">[{log.time}]</span>
-                                <span className={
-                                    log.type === 'success' ? styles.logSuccess : 
-                                    log.type === 'warning' ? styles.logWarning : 
-                                    log.type === 'error' ? styles.logError : styles.logInfo
-                                }>
-                                    {log.msg}
-                                </span>
+                        <div className="card-body p-3 d-flex flex-column justify-content-between">
+                            <div className="mb-3">
+                                <div className="form-check mb-2">
+                                    <input className="form-check-input" type="checkbox" id="chkDup" checked={options.skipDuplicates} onChange={() => setOptions({...options, skipDuplicates: !options.skipDuplicates})} />
+                                    <label className={`form-check-label ${styles.checkboxLabel}`} htmlFor="chkDup">Omitir duplicados (recomendado)</label>
+                                </div>
+                                <div className="form-check mb-2">
+                                    <input className="form-check-input" type="checkbox" id="chkNew" checked={options.onlyNew} readOnly />
+                                    <label className={`form-check-label text-muted ${styles.checkboxLabel}`} htmlFor="chkNew">Indexar solo archivos nuevos</label>
+                                </div>
+                                <div className="form-check mb-2">
+                                    <input className="form-check-input" type="checkbox" id="chkAssoc" checked={options.associateFolder} readOnly />
+                                    <label className={`form-check-label text-muted ${styles.checkboxLabel}`} htmlFor="chkAssoc">Asociar a estructura de sistema</label>
+                                </div>
                             </div>
-                        ))}
+
+                            <button 
+                                className={`btn w-100 mt-auto ${styles.btnIndex}`} 
+                                onClick={handleIndex}
+                                disabled={isScanning || isIndexing || stats.detectadas === 0}
+                            >
+                                {isIndexing ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-2"></span>
+                                        Indexando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="bi bi-play-circle-fill me-2"></i> Iniciar Indexación
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
+                {/* COLUMNA DERECHA: LOGS (CONSOLA) */}
+                <div className="col-md-7 d-flex flex-column">
+                    <div className={`card ${styles.cardCustom} mb-0 flex-grow-1 d-flex flex-column`}>
+                        <div className={styles.cardHeader}>
+                            <i className="bi bi-journal-code me-2"></i> Consola de Resultados
+                        </div>
+                        <div className="card-body p-3 d-flex flex-column">
+                            {/* Este div actuará con overflow para el scroll interno de los logs */}
+                            <div className={styles.consoleContainer}>
+                                {logs.length === 0 && <span className="text-muted small">Sin actividad reciente.</span>}
+                                {logs.map((log, index) => (
+                                    <div key={index} className="mb-1">
+                                        <span className="text-muted small me-2" style={{opacity: 0.7}}>
+                                            [{log.time}]
+                                        </span>
+                                        <span className={
+                                            log.type === 'success' ? styles.logSuccess : 
+                                            log.type === 'warning' ? styles.logWarning : 
+                                            log.type === 'error' ? styles.logError : styles.logInfo
+                                        }>
+                                            {log.msg}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
     );
 };
