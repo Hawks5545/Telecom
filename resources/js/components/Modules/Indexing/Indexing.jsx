@@ -1,22 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from './Indexing.module.css';
 import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const Indexing = () => {
-    
+
     // --- 1. ESTADOS ---
     const [stats, setStats] = useState({
         detectadas: 0,
-        indexadas: 0, 
-        peso: '---', 
+        indexadas: 0,
+        peso: '---',
         ultima: '---'
     });
 
-    // Ruta vacía por defecto
-    const [folderPath, setFolderPath] = useState(''); 
+    const [folderPath, setFolderPath] = useState('');
     const [isScanning, setIsScanning] = useState(false);
     const [isIndexing, setIsIndexing] = useState(false);
-    
+
     const [logs, setLogs] = useState([
         { type: 'info', msg: 'Sistema listo. Ingrese una ruta y presione Escanear.' }
     ]);
@@ -26,6 +25,9 @@ const Indexing = () => {
         onlyNew: true,
         associateFolder: true
     });
+
+    // Referencia exclusiva para la caja de la consola
+    const consoleContainerRef = useRef(null);
 
     // --- 2. ALERTAS ---
     const [alertConfig, setAlertConfig] = useState({
@@ -37,11 +39,18 @@ const Indexing = () => {
     };
     const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
-    // --- 3. FUNCIONES DE LOGS ---
+    // --- 3. FUNCIONES DE LOGS Y AUTO-SCROLL ---
     const addLog = (type, msg) => {
         const time = new Date().toLocaleTimeString();
         setLogs(prev => [...prev, { type, msg, time }]);
     };
+
+    // Auto-scroll estricto interno (No moverá la página completa)
+    useEffect(() => {
+        if (consoleContainerRef.current) {
+            consoleContainerRef.current.scrollTop = consoleContainerRef.current.scrollHeight;
+        }
+    }, [logs]);
 
     // --- 4. ACCIÓN: ESCANEAR (FASE 1) ---
     const handleScan = async () => {
@@ -49,12 +58,12 @@ const Indexing = () => {
 
         setIsScanning(true);
         addLog('info', `Iniciando escaneo en: ${folderPath}...`);
-        
+
         try {
             const token = localStorage.getItem('auth_token');
             const response = await fetch('/api/indexing/scan', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
@@ -66,7 +75,7 @@ const Indexing = () => {
             if (response.ok) {
                 setStats(prev => ({
                     ...prev,
-                    peso: `${data.size_mb} MB`, 
+                    peso: `${data.size_mb} MB`,
                     detectadas: data.files_count
                 }));
                 addLog('success', `Escaneo exitoso: ${data.files_count} archivos de audio detectados (${data.size_mb} MB).`);
@@ -86,7 +95,7 @@ const Indexing = () => {
         if (stats.peso === '---' || stats.detectadas === 0) {
             return showAlert(
                 'warning',
-                'Escaneo Requerido', 
+                'Escaneo Requerido',
                 '⚠️ Por favor, realiza un escaneo exitoso antes de iniciar la indexación.'
             );
         }
@@ -99,11 +108,11 @@ const Indexing = () => {
             const token = localStorage.getItem('auth_token');
             const response = await fetch('/api/indexing/run', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     path: folderPath,
                     options: options
                 })
@@ -113,20 +122,20 @@ const Indexing = () => {
 
             if (response.ok) {
                 const today = new Date().toISOString().slice(0,10);
-                setStats(prev => ({ 
-                    ...prev, 
-                    indexadas: data.total_in_db, 
-                    ultima: today 
+                setStats(prev => ({
+                    ...prev,
+                    indexadas: data.total_in_db,
+                    ultima: today
                 }));
-                
+
                 addLog('success', `PROCESO FINALIZADO.`);
-                
+
                 if (data.indexed > 0) addLog('success', `✅ Nuevos indexados: ${data.indexed}`);
                 if (data.skipped > 0) addLog('warning', `⏭️ Omitidos (Duplicados): ${data.skipped}`);
-                
+
                 showAlert(
-                    data.status_type || 'success', 
-                    data.title_msg || 'Proceso Finalizado', 
+                    data.status_type || 'success',
+                    data.title_msg || 'Proceso Finalizado',
                     data.message || `Se procesaron ${data.indexed} archivos.`
                 );
 
@@ -144,8 +153,8 @@ const Indexing = () => {
 
     return (
         <div className={`container-fluid p-0 ${styles.fadeIn} ${styles.fullHeightContainer}`}>
-            
-            <CustomAlert 
+
+            <CustomAlert
                 isOpen={alertConfig.isOpen}
                 type={alertConfig.type}
                 title={alertConfig.title}
@@ -158,7 +167,7 @@ const Indexing = () => {
                 <i className="bi bi-database-gear me-2"></i>
                 Módulo de Indexación
             </h2>
-            
+
             {/* --- SECCIÓN 1: ESTADÍSTICAS --- */}
             <div className={`card ${styles.cardCustom} mb-3`}>
                 <div className={styles.cardHeader}>
@@ -200,7 +209,7 @@ const Indexing = () => {
                 </div>
             </div>
 
-            {/* --- SECCIÓN 2: CARPETA DEL SERVIDOR (TODO EL ANCHO) --- */}
+            {/* --- SECCIÓN 2: CARPETA DEL SERVIDOR --- */}
             <div className={`card ${styles.cardCustom} mb-3`}>
                 <div className={styles.cardHeader}>
                     <i className="bi bi-folder-symlink me-2"></i> Carpeta del Servidor
@@ -209,15 +218,15 @@ const Indexing = () => {
                     <label className={styles.label}>Ruta absoluta (Ej: C:\audios o /mnt/grabaciones)</label>
                     <div className="input-group mb-1">
                         <span className="input-group-text bg-light d-none d-sm-flex"><i className="bi bi-terminal"></i></span>
-                        <input 
-                            type="text" 
-                            className="form-control" 
+                        <input
+                            type="text"
+                            className="form-control"
                             value={folderPath}
                             onChange={(e) => setFolderPath(e.target.value)}
                             placeholder="Ingresa la ruta a escanear"
                         />
-                        <button 
-                            className={`btn ${styles.btnScan}`} 
+                        <button
+                            className={`btn ${styles.btnScan}`}
                             onClick={handleScan}
                             disabled={isScanning || isIndexing}
                         >
@@ -230,17 +239,17 @@ const Indexing = () => {
                 </div>
             </div>
 
-            {/* --- SECCIÓN 3 Y 4: OPCIONES Y CONSOLA (LADO A LADO) --- */}
-            <div className="row g-3 flex-grow-1 overflow-hidden" style={{ minHeight: 0, paddingBottom: '1rem' }}>
-                
+            {/* --- SECCIÓN 3 Y 4: OPCIONES Y CONSOLA --- */}
+            <div className="row g-3">
+
                 {/* COLUMNA IZQUIERDA: OPCIONES */}
-                <div className="col-md-5 d-flex flex-column">
-                    <div className={`card ${styles.cardCustom} mb-0 flex-grow-1 d-flex flex-column`}>
+                <div className="col-md-5">
+                    <div className={`card ${styles.cardCustom}`}>
                         <div className={styles.cardHeader}>
                             <i className="bi bi-sliders me-2"></i> Opciones de Indexación
                         </div>
                         <div className="card-body p-3 d-flex flex-column justify-content-between">
-                            <div className="mb-3">
+                            <div>
                                 <div className="form-check mb-2">
                                     <input className="form-check-input" type="checkbox" id="chkDup" checked={options.skipDuplicates} onChange={() => setOptions({...options, skipDuplicates: !options.skipDuplicates})} />
                                     <label className={`form-check-label ${styles.checkboxLabel}`} htmlFor="chkDup">Omitir duplicados (recomendado)</label>
@@ -255,8 +264,8 @@ const Indexing = () => {
                                 </div>
                             </div>
 
-                            <button 
-                                className={`btn w-100 mt-auto ${styles.btnIndex}`} 
+                            <button
+                                className={`btn w-100 ${styles.btnIndex}`}
                                 onClick={handleIndex}
                                 disabled={isScanning || isIndexing || stats.detectadas === 0}
                             >
@@ -275,24 +284,27 @@ const Indexing = () => {
                     </div>
                 </div>
 
-                {/* COLUMNA DERECHA: LOGS (CONSOLA) */}
-                <div className="col-md-7 d-flex flex-column">
-                    <div className={`card ${styles.cardCustom} mb-0 flex-grow-1 d-flex flex-column`}>
+                {/* COLUMNA DERECHA: LOGS (CONSOLA SCROLLABLE) */}
+                <div className="col-md-7">
+                    <div className={`card ${styles.cardCustom}`}>
                         <div className={styles.cardHeader}>
                             <i className="bi bi-journal-code me-2"></i> Consola de Resultados
                         </div>
-                        <div className="card-body p-3 d-flex flex-column">
-                            {/* Este div actuará con overflow para el scroll interno de los logs */}
-                            <div className={styles.consoleContainer}>
+                        <div className="card-body p-3">
+                            <div
+                                ref={consoleContainerRef}
+                                className={styles.consoleContainer}
+                            >
                                 {logs.length === 0 && <span className="text-muted small">Sin actividad reciente.</span>}
+
                                 {logs.map((log, index) => (
                                     <div key={index} className="mb-1">
                                         <span className="text-muted small me-2" style={{opacity: 0.7}}>
                                             [{log.time}]
                                         </span>
                                         <span className={
-                                            log.type === 'success' ? styles.logSuccess : 
-                                            log.type === 'warning' ? styles.logWarning : 
+                                            log.type === 'success' ? styles.logSuccess :
+                                            log.type === 'warning' ? styles.logWarning :
                                             log.type === 'error' ? styles.logError : styles.logInfo
                                         }>
                                             {log.msg}

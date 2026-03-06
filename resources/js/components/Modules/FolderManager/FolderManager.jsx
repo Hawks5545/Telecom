@@ -3,18 +3,18 @@ import styles from './FolderManager.module.css';
 import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const FolderManager = () => {
-    
+
     // --- ESTADOS ---
-    const [viewType, setViewType] = useState('virtual'); 
-    const [fileSystemData, setFileSystemData] = useState([]); 
-    const [currentFolderId, setCurrentFolderId] = useState(0); 
+    const [viewType, setViewType] = useState('virtual');
+    const [fileSystemData, setFileSystemData] = useState([]);
+    const [currentFolderId, setCurrentFolderId] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
-    
+
     // Selección y Movimiento
     const [selectedItems, setSelectedItems] = useState([]);
     const [showMoveModal, setShowMoveModal] = useState(false);
     const [targetFolderId, setTargetFolderId] = useState('');
-    const [allFolders, setAllFolders] = useState([]); 
+    const [allFolders, setAllFolders] = useState([]);
     const [isMoving, setIsMoving] = useState(false);
 
     // Paginación
@@ -40,9 +40,6 @@ const FolderManager = () => {
     const showAlert = (type, title, message, onConfirm = null) => setAlertConfig({ isOpen: true, type, title, message, onConfirm });
     const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
 
-    // Referencias para optimización (Evitar llamadas dobles)
-    const isFirstRender = useRef(true);
-
     // --- UTILIDAD ---
     const formatBytes = (bytes, decimals = 2) => {
         if (!+bytes) return '0 Bytes';
@@ -61,21 +58,21 @@ const FolderManager = () => {
     const fetchItems = useCallback(async (page = 1) => {
         setIsLoading(true);
         const token = localStorage.getItem('auth_token');
-        
+
         const params = new URLSearchParams({
-            page: page, 
+            page: page,
             parentId: currentFolderId,
             search: searchTerm,
             dateFrom: dateFrom,
             dateTo: dateTo,
-            viewType: viewType 
+            viewType: viewType
         });
 
         try {
             const response = await fetch(`/api/folder-manager/items?${params}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.data) {
@@ -93,58 +90,56 @@ const FolderManager = () => {
                 }
                 setSelectedItems([]);
             }
-        } catch (error) { console.error("Error conexión", error); } 
-        finally { setIsLoading(false); }
+        } catch (error) {
+            console.error("Error conexión", error);
+        } finally {
+            setIsLoading(false);
+        }
     }, [currentFolderId, searchTerm, dateFrom, dateTo, viewType]);
 
-    // OPTIMIZACIÓN DEL LAG: Separar efectos
-    // 1. Carga INMEDIATA al cambiar de pestaña (viewType) o abrir carpeta (currentFolderId)
+    // 1. Carga INMEDIATA
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return; // Evita doble renderizado inicial en React
-        }
         fetchItems(1);
-    }, [currentFolderId, viewType]); // <- Sin setTimeout, respuesta instantánea
+    }, [currentFolderId, viewType, fetchItems]);
 
-    // 2. Carga CON RETRASO (Debounce) solo al escribir en el buscador o fechas
+    // 2. Carga CON RETRASO (Debounce) para búsquedas
     useEffect(() => {
-        if (searchTerm === '' && dateFrom === '' && dateTo === '') return; // Si están vacíos, no hacer nada (ya lo hizo el primer useEffect)
-        
-        const timer = setTimeout(() => { 
-            fetchItems(1); 
-        }, 600); // 600ms solo para el tipeo
-        
+        if (searchTerm === '' && dateFrom === '' && dateTo === '') return;
+
+        const timer = setTimeout(() => {
+            fetchItems(1);
+        }, 600);
+
         return () => clearTimeout(timer);
-    }, [searchTerm, dateFrom, dateTo]);
+    }, [searchTerm, dateFrom, dateTo, fetchItems]);
 
 
     // Cargar lista de carpetas para modal
     const fetchAllFolders = async () => {
         const token = localStorage.getItem('auth_token');
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/search/folders', { headers: { 'Authorization': `Bearer ${token}` }});
+            const res = await fetch('/api/search/folders', { headers: { 'Authorization': `Bearer ${token}` }});
             if (res.ok) setAllFolders(await res.json());
         } catch (e) { console.error(e); }
     };
 
     useEffect(() => {
         if (showMoveModal && allFolders.length === 0) {
-            fetchAllFolders(); // Solo carga si el array está vacío (Evita llamadas de red innecesarias)
+            fetchAllFolders();
         }
-    }, [showMoveModal]);
+    }, [showMoveModal, allFolders.length]);
 
-    // --- MÉTODOS DE ACCIÓN (Mantienen tu misma lógica) ---
+    // --- MÉTODOS DE ACCIÓN ---
     const handleSaveFolder = async (e) => {
         e.preventDefault();
         if (!newFolderName.trim()) return;
         setIsSaving(true);
         const token = localStorage.getItem('auth_token');
 
-        const url = editingFolder 
-            ? `http://127.0.0.1:8000/api/folder-manager/${editingFolder.id}`
-            : 'http://127.0.0.1:8000/api/folder-manager/create';
-        
+        const url = editingFolder
+            ? `/api/folder-manager/${editingFolder.id}`
+            : '/api/folder-manager/create';
+
         const method = editingFolder ? 'PUT' : 'POST';
 
         try {
@@ -165,7 +160,7 @@ const FolderManager = () => {
             } else {
                 showAlert('error', 'Error', data.message || 'Ocurrió un error.');
             }
-        } catch (error) { showAlert('error', 'Error', 'Intente nuevamente.'); } 
+        } catch (error) { showAlert('error', 'Error', 'Intente nuevamente.'); }
         finally { setIsSaving(false); }
     };
 
@@ -173,7 +168,7 @@ const FolderManager = () => {
         showAlert('delete', 'Eliminar Carpeta', `¿Estás seguro de eliminar "${folder.name}"?`, async () => {
             const token = localStorage.getItem('auth_token');
             try {
-                const res = await fetch(`http://127.0.0.1:8000/api/folder-manager/${folder.id}`, {
+                const res = await fetch(`/api/folder-manager/${folder.id}`, {
                     method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
@@ -192,22 +187,22 @@ const FolderManager = () => {
         setIsMoving(true);
         const token = localStorage.getItem('auth_token');
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/search/move', {
+            const res = await fetch('/api/search/move', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ ids: selectedItems, target_folder_id: targetFolderId })
             });
             const data = await res.json();
             if (res.ok) {
-                setShowMoveModal(false); 
-                setSelectedItems([]); 
+                setShowMoveModal(false);
+                setSelectedItems([]);
                 setTargetFolderId('');
                 showAlert('success', 'Movimiento Exitoso', data.message);
                 fetchItems(pagination.currentPage);
             } else {
                 showAlert('error', 'Error', data.message);
             }
-        } catch (e) { showAlert('error', 'Error', 'Fallo de conexión'); } 
+        } catch (e) { showAlert('error', 'Error', 'Fallo de conexión'); }
         finally { setIsMoving(false); }
     };
 
@@ -219,7 +214,7 @@ const FolderManager = () => {
             setSelectedItems([]);
         }
     };
-    
+
     const handleCheckbox = (id) => {
         if (selectedItems.includes(id)) setSelectedItems(selectedItems.filter(i => i !== id));
         else setSelectedItems([...selectedItems, id]);
@@ -232,16 +227,17 @@ const FolderManager = () => {
     const handleOpenFolder = (folder) => {
         setCurrentFolderId(folder.id);
         setBreadcrumbs([...breadcrumbs, { id: folder.id, name: folder.name }]);
-        setSearchTerm(''); 
-        setPagination(prev => ({ ...prev, currentPage: 1 })); 
+        setSearchTerm('');
+        setPagination(prev => ({ ...prev, currentPage: 1 }));
     };
 
+    // --- DESCARGAS OPTIMIZADAS ---
     const handleDownload = (item) => {
         const isFolder = item.type === 'folder';
         const sizeInfo = item.size_bytes ? formatBytes(item.size_bytes) : 'Desconocido';
         const title = isFolder ? 'Descargar Carpeta ZIP' : 'Descargar Archivo';
-        const msg = isFolder 
-            ? `Vas a descargar "${item.name}".\n\nPeso total: ${sizeInfo}.\n\nSe creará un ZIP. ¿Deseas continuar?` 
+        const msg = isFolder
+            ? `Vas a descargar "${item.name}".\n\nPeso total aproximado: ${sizeInfo}.\n\nSe creará un ZIP. ¿Deseas continuar?`
             : `¿Deseas descargar "${item.name}"?\nPeso: ${sizeInfo}`;
         showAlert('info', title, msg, () => executeDownload(item));
     };
@@ -250,25 +246,71 @@ const FolderManager = () => {
         const token = localStorage.getItem('auth_token');
         const isFolder = item.type === 'folder';
         const timestamp = new Date().getTime();
-        const url = isFolder 
+        const url = isFolder
             ? `/api/folder-manager/download-folder/${item.id}?t=${timestamp}`
             : `/api/folder-manager/download/${item.id}?t=${timestamp}`;
 
         try {
-            showAlert('loading', isFolder ? 'Comprimiendo...' : 'Descargando...', 'Por favor espera...');
+            // Fase 1: Informar que el servidor está preparando el archivo
+            showAlert('loading', isFolder ? 'Preparando ZIP...' : 'Conectando...', 'Comprimiendo archivos en el servidor. Esto puede tardar unos segundos...');
+            
             const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (response.ok) {
-                const blob = await response.blob();
-                const link = window.URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = link;
-                a.download = isFolder ? `${item.name}.zip` : item.name; 
-                document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(link); 
-                closeAlert();
-            } else {
+            
+            if (!response.ok) {
                 const errorData = await response.json();
-                showAlert('error', 'Error', errorData.message || 'No disponible.');
+                return showAlert('error', 'Error', errorData.message || 'Archivo no disponible.');
             }
-        } catch (error) { showAlert('error', 'Error', 'Fallo de conexión.'); }
+
+            // Fase 2: Streaming de la descarga con Throttling (Optimización de Rendimiento)
+            const reader = response.body.getReader();
+            const contentLength = +response.headers.get('Content-Length');
+            
+            let receivedLength = 0;
+            const chunks = [];
+            let lastUiUpdateTime = Date.now();
+
+            while(true) {
+                const {done, value} = await reader.read();
+                
+                if (done) break;
+                
+                chunks.push(value);
+                receivedLength += value.length;
+
+                // Throttling: Solo actualizamos la pantalla cada 250ms para no congelar React
+                const now = Date.now();
+                if (now - lastUiUpdateTime > 250) {
+                    const mb = (receivedLength / (1024 * 1024)).toFixed(2);
+                    if (contentLength) {
+                        const percent = ((receivedLength / contentLength) * 100).toFixed(0);
+                        showAlert('loading', 'Descargando...', `Progreso: ${percent}%  (${mb} MB)`);
+                    } else {
+                        // Si el servidor no envía el peso final, mostramos los MB descargados
+                        showAlert('loading', 'Descargando...', `Recibiendo datos: ${mb} MB descargados...`);
+                    }
+                    lastUiUpdateTime = now;
+                }
+            }
+
+            // Fase 3: Ensamblar y forzar la descarga en el navegador
+            showAlert('loading', 'Finalizando...', 'Guardando el archivo en tu equipo...');
+            
+            const blob = new Blob(chunks);
+            const link = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); 
+            a.href = link;
+            a.download = isFolder ? `${item.name}.zip` : item.name;
+            document.body.appendChild(a); 
+            a.click(); 
+            a.remove(); 
+            window.URL.revokeObjectURL(link);
+            
+            closeAlert();
+
+        } catch (error) { 
+            console.error("Error de red durante la descarga:", error);
+            showAlert('error', 'Error', 'Se perdió la conexión durante la descarga.'); 
+        }
     };
 
     // --- RENDERIZADO DEL COMPONENTE ---
@@ -279,7 +321,7 @@ const FolderManager = () => {
             {/* HEADER */}
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <h2 className={styles.pageTitle}><i className="bi bi-folder-fill me-2"></i> Gestión de Carpetas</h2>
-                
+
                 {currentFolderId === 0 && viewType === 'virtual' && (
                     <button className={`btn ${styles.btnPrimaryCustom} shadow-sm`} onClick={() => { setEditingFolder(null); setNewFolderName(''); setShowCreateModal(true); }}>
                         <i className="bi bi-plus-circle-fill me-2"></i> Nueva Campaña
@@ -291,17 +333,17 @@ const FolderManager = () => {
             {currentFolderId === 0 && (
                 <ul className="nav nav-tabs mb-4 border-bottom">
                     <li className="nav-item">
-                        <button 
-                            className={`nav-link ${styles.customTab} ${viewType === 'virtual' ? styles.customTabActive : ''}`} 
-                            onClick={() => { setViewType('virtual'); setPagination({...pagination, currentPage: 1}); }}
+                        <button
+                            className={`nav-link ${styles.customTab} ${viewType === 'virtual' ? styles.customTabActive : ''}`}
+                            onClick={() => { setViewType('virtual'); setPagination(prev => ({...prev, currentPage: 1})); }}
                         >
                             <i className="bi bi-star-fill me-2"></i> Campañas Comerciales
                         </button>
                     </li>
                     <li className="nav-item">
-                        <button 
-                            className={`nav-link ${styles.customTab} ${viewType === 'physical' ? styles.customTabActive : ''}`} 
-                            onClick={() => { setViewType('physical'); setPagination({...pagination, currentPage: 1}); }}
+                        <button
+                            className={`nav-link ${styles.customTab} ${viewType === 'physical' ? styles.customTabActive : ''}`}
+                            onClick={() => { setViewType('physical'); setPagination(prev => ({...prev, currentPage: 1})); }}
                         >
                             <i className="bi bi-inbox-fill me-2"></i> Bandeja de Entrada (Importaciones)
                         </button>
@@ -349,7 +391,7 @@ const FolderManager = () => {
             {/* BREADCRUMBS */}
             <div className={styles.breadcrumbBar}>
                 <span className={`${styles.breadcrumbItem} ${currentFolderId === 0 ? styles.breadcrumbActive : ''}`} onClick={() => { setCurrentFolderId(0); setBreadcrumbs([{id:0, name:'Inicio'}]); }}>Inicio</span>
-                {breadcrumbs.slice(1).map((crumb, idx) => (
+                {breadcrumbs.slice(1).map((crumb) => (
                     <span key={crumb.id} className={styles.breadcrumbItem}> / {crumb.name}</span>
                 ))}
             </div>
@@ -386,8 +428,8 @@ const FolderManager = () => {
                                             <td className={currentFolderId === 0 ? "ps-4" : ""}>
                                                 <div className="d-flex align-items-center">
                                                     <div className="me-3">
-                                                        {item.type === 'folder' 
-                                                            ? <i className={`bi bi-hdd-fill ${styles.folderIcon}`}></i> 
+                                                        {item.type === 'folder'
+                                                            ? <i className={`bi bi-hdd-fill ${styles.folderIcon}`}></i>
                                                             : <i className={`bi bi-file-earmark-music-fill ${styles.fileIcon}`}></i>
                                                         }
                                                     </div>
@@ -433,15 +475,19 @@ const FolderManager = () => {
                         </table>
                     </div>
                 </div>
-                
-                {/* FOOTER PAGINACIÓN */}
-                {currentFolderId !== 0 && (
+
+                {/* FOOTER PAGINACIÓN CORREGIDO */}
+                {pagination.total > 0 && (
                     <div className="card-footer bg-white border-0 py-2 d-flex justify-content-between align-items-center">
                         <div className="text-muted small">Mostrando {pagination.from || 0}-{pagination.to || 0} de {pagination.total}</div>
                         <div>
-                            <button className="btn btn-sm btn-light me-1" disabled={pagination.currentPage === 1} onClick={() => handlePageChange(pagination.currentPage - 1)}><i className="bi bi-chevron-left"></i></button>
+                            <button className="btn btn-sm btn-light me-1" disabled={pagination.currentPage === 1} onClick={() => handlePageChange(pagination.currentPage - 1)}>
+                                <i className="bi bi-chevron-left"></i>
+                            </button>
                             <span className="mx-2 align-self-center small">Página {pagination.currentPage}</span>
-                            <button className="btn btn-sm btn-light ms-1" disabled={pagination.currentPage === pagination.lastPage} onClick={() => handlePageChange(pagination.currentPage + 1)}><i className="bi bi-chevron-right"></i></button>
+                            <button className="btn btn-sm btn-light ms-1" disabled={pagination.currentPage === pagination.lastPage || pagination.lastPage === 0} onClick={() => handlePageChange(pagination.currentPage + 1)}>
+                                <i className="bi bi-chevron-right"></i>
+                            </button>
                         </div>
                     </div>
                 )}
@@ -486,7 +532,7 @@ const FolderManager = () => {
                             </div>
                             <div className="modal-body py-4">
                                 <p style={{color: '#546e7a'}}>Selecciona la Campaña destino para los <strong style={{color: '#005461'}}>{selectedItems.length} archivos</strong> seleccionados:</p>
-                                
+
                                 {allFolders.length === 0 ? (
                                     <div className="text-center py-3"><span className="spinner-border text-primary"></span><p className="mt-2 text-muted">Cargando campañas...</p></div>
                                 ) : (

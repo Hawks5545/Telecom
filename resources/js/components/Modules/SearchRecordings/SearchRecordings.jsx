@@ -3,18 +3,18 @@ import styles from './SearchRecordings.module.css';
 import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const SearchRecordings = () => {
-    
+
     // --- ESTADOS ---
     const [allData, setAllData] = useState([]);
     const [folders, setFolders] = useState([]);
-    
+
     // Mantenemos los IDs seleccionados
     const [selectedItems, setSelectedItems] = useState([]);
     // Mantenemos un mapa de los pesos de los items seleccionados { id: bytes }
     const [selectedSizes, setSelectedSizes] = useState({});
 
     const [isLoading, setIsLoading] = useState(false);
-    
+
     const [pagination, setPagination] = useState({
         currentPage: 1, lastPage: 1, total: 0, from: 0, to: 0
     });
@@ -47,8 +47,8 @@ const SearchRecordings = () => {
     }, [selectedSizes]);
 
     // --- CARGA ---
-    useEffect(() => { 
-        fetchFolders(); 
+    useEffect(() => {
+        fetchFolders();
         // Establecer la fecha máxima como HOY
         setMaxDate(new Date().toISOString().split('T')[0]);
     }, []);
@@ -141,35 +141,66 @@ const SearchRecordings = () => {
         }
     };
 
-    // --- DESCARGAS ---
+    // --- DESCARGAS INDIVIDUALES OPTIMIZADAS ---
     const handleSingleDownload = async (item) => {
         const token = localStorage.getItem('auth_token');
         try {
-            showAlert('loading', 'Descargando...', `Peso: ${formatBytes(item.size)}`);
-            
-            // --- AQUÍ ESTÁ EL FIX ANTI-CACHÉ ---
-            const timestamp = new Date().getTime(); // Genera un número único
+            showAlert('loading', 'Conectando...', `Preparando descarga de ${formatBytes(item.size)}...`);
+
+            const timestamp = new Date().getTime(); 
             const url = `/api/search/download/${item.id}?t=${timestamp}`;
 
-            const res = await fetch(url, { 
+            const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            
-            if (res.ok) {
-                const blob = await res.blob();
-                const urlObj = window.URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = urlObj; a.download = item.filename;
-                document.body.appendChild(a); a.click(); a.remove(); 
-                window.URL.revokeObjectURL(urlObj); // Buena práctica: limpiar memoria
-                closeAlert();
-            } else { 
-                showAlert('error', 'Error', 'Archivo no encontrado.'); 
+
+            if (!response.ok) {
+                return showAlert('error', 'Error', 'Archivo no encontrado.');
             }
-        } catch (e) { 
-            showAlert('error', 'Error', 'Fallo de conexión.'); 
+
+            const reader = response.body.getReader();
+            // Si el header no viene, usamos el peso que ya sabemos del objeto 'item'
+            const contentLength = +response.headers.get('Content-Length') || item.size; 
+            
+            let receivedLength = 0;
+            const chunks = [];
+            let lastUiUpdateTime = Date.now();
+
+            while(true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                
+                chunks.push(value);
+                receivedLength += value.length;
+
+                const now = Date.now();
+                if (now - lastUiUpdateTime > 250) { // Actualiza la UI cada 250ms
+                    const mb = (receivedLength / (1024 * 1024)).toFixed(2);
+                    if (contentLength) {
+                        const percent = ((receivedLength / contentLength) * 100).toFixed(0);
+                        showAlert('loading', 'Descargando...', `Progreso: ${percent}% (${mb} MB)`);
+                    } else {
+                        showAlert('loading', 'Descargando...', `Recibiendo datos: ${mb} MB...`);
+                    }
+                    lastUiUpdateTime = now;
+                }
+            }
+
+            showAlert('loading', 'Finalizando...', 'Guardando el archivo en tu equipo...');
+            const blob = new Blob(chunks);
+            const urlObj = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = urlObj; a.download = item.filename;
+            document.body.appendChild(a); a.click(); a.remove();
+            window.URL.revokeObjectURL(urlObj); 
+            closeAlert();
+
+        } catch (e) {
+            console.error("Error en descarga:", e);
+            showAlert('error', 'Error', 'Fallo de conexión.');
         }
     };
 
+    // --- DESCARGAS MASIVAS (ZIP) OPTIMIZADAS ---
     const handleMassiveDownload = () => {
         showAlert('info', 'Descarga Masiva', `Se comprimirán ${selectedItems.length} archivos.\n\nPeso Total Estimado: ${totalSelectedSize}.\n\n¿Deseas continuar?`, executeZipDownload);
     };
@@ -177,26 +208,61 @@ const SearchRecordings = () => {
     const executeZipDownload = async () => {
         const token = localStorage.getItem('auth_token');
         try {
-            showAlert('loading', 'Comprimiendo...', `Procesando ${totalSelectedSize}... esto puede tardar.`);
-            const res = await fetch('/api/search/download-zip', {
+            showAlert('loading', 'Comprimiendo...', `Procesando ${totalSelectedSize} en el servidor. Esto puede tardar unos segundos...`);
+            
+            const response = await fetch('/api/search/download-zip', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ ids: selectedItems })
             });
-            if (res.ok) {
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = `seleccion_${Date.now()}.zip`;
-                document.body.appendChild(a); a.click(); a.remove(); 
-                window.URL.revokeObjectURL(url);
+            
+            if (!response.ok) { 
+                return showAlert('error', 'Error', 'No se pudo crear el ZIP o archivos no encontrados.'); 
+            }
+
+            const reader = response.body.getReader();
+            const contentLength = +response.headers.get('Content-Length');
+            
+            let receivedLength = 0;
+            const chunks = [];
+            let lastUiUpdateTime = Date.now();
+
+            while(true) {
+                const {done, value} = await reader.read();
+                if (done) break;
                 
-                // Limpiar selección tras descarga exitosa
-                setSelectedItems([]);
-                setSelectedSizes({});
-                
-                closeAlert();
-            } else { showAlert('error', 'Error', 'No se pudo crear el ZIP o archivos no encontrados.'); }
-        } catch (e) { showAlert('error', 'Error', 'Fallo de conexión.'); }
+                chunks.push(value);
+                receivedLength += value.length;
+
+                const now = Date.now();
+                if (now - lastUiUpdateTime > 250) {
+                    const mb = (receivedLength / (1024 * 1024)).toFixed(2);
+                    if (contentLength) {
+                        const percent = ((receivedLength / contentLength) * 100).toFixed(0);
+                        showAlert('loading', 'Descargando ZIP...', `Progreso: ${percent}% (${mb} MB)`);
+                    } else {
+                        showAlert('loading', 'Descargando ZIP...', `Recibiendo datos: ${mb} MB descargados...`);
+                    }
+                    lastUiUpdateTime = now;
+                }
+            }
+
+            showAlert('loading', 'Finalizando...', 'Guardando el archivo ZIP en tu equipo...');
+            const blob = new Blob(chunks);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `seleccion_${Date.now()}.zip`;
+            document.body.appendChild(a); a.click(); a.remove();
+            window.URL.revokeObjectURL(url);
+
+            // Limpiar selección tras descarga exitosa
+            setSelectedItems([]);
+            setSelectedSizes({});
+            closeAlert();
+
+        } catch (e) { 
+            console.error("Error en descarga masiva:", e);
+            showAlert('error', 'Error', 'Fallo de conexión.'); 
+        }
     };
 
     const isAllSelected = allData.length > 0 && allData.every(item => selectedItems.includes(item.id));
@@ -209,7 +275,7 @@ const SearchRecordings = () => {
                 <h2 className={styles.pageTitle}><i className="bi bi-music-note-list me-2"></i> Búsqueda de Grabaciones</h2>
                 {selectedItems.length > 0 && (
                     <button className={`btn ${styles.btnDownloadMassive}`} onClick={handleMassiveDownload}>
-                        <i className="bi bi-cloud-download-fill me-2"></i> 
+                        <i className="bi bi-cloud-download-fill me-2"></i>
                         Descargar {selectedItems.length} ({totalSelectedSize})
                     </button>
                 )}
@@ -223,31 +289,31 @@ const SearchRecordings = () => {
                         <div className="col-md-2"><label className={styles.label}>Cédula</label><input className="form-control form-control-sm" name="cedula" value={filters.cedula} onChange={handleFilterChange} placeholder="1098..." /></div>
                         <div className="col-md-2"><label className={styles.label}>Teléfono</label><input className="form-control form-control-sm" name="telefono" value={filters.telefono} onChange={handleFilterChange} placeholder="300..." /></div>
                         <div className="col-md-3"><label className={styles.label}>Campaña</label><input className="form-control form-control-sm" name="campana" value={filters.campana} onChange={handleFilterChange} placeholder="Escribe..." /></div>
-                        
+
                         {/* INPUTS DE FECHA CON MAX DATE APLICADO */}
                         <div className="col-md-2">
                             <label className={styles.label}>Desde</label>
-                            <input 
-                                type="date" 
-                                className="form-control form-control-sm" 
-                                name="dateFrom" 
-                                value={filters.dateFrom} 
-                                max={maxDate} // BLOQUEO FUTURO
-                                onChange={handleFilterChange} 
+                            <input
+                                type="date"
+                                className="form-control form-control-sm"
+                                name="dateFrom"
+                                value={filters.dateFrom}
+                                max={maxDate} 
+                                onChange={handleFilterChange}
                             />
                         </div>
                         <div className="col-md-3">
                             <label className={styles.label}>Hasta</label>
-                            <input 
-                                type="date" 
-                                className="form-control form-control-sm" 
-                                name="dateTo" 
-                                value={filters.dateTo} 
-                                max={maxDate} // BLOQUEO FUTURO
-                                onChange={handleFilterChange} 
+                            <input
+                                type="date"
+                                className="form-control form-control-sm"
+                                name="dateTo"
+                                value={filters.dateTo}
+                                max={maxDate} 
+                                onChange={handleFilterChange}
                             />
                         </div>
-                        
+
                         <div className="col-md-6"><label className={styles.label}>Carpeta</label>
                             <select className="form-select form-select-sm" name="folderId" value={filters.folderId} onChange={handleFilterChange}>
                                 <option value="">Todas</option>
@@ -272,7 +338,7 @@ const SearchRecordings = () => {
                                 <tr>
                                     <th className="ps-4" style={{width: '40px'}}><input className={`form-check-input ${styles.checkbox}`} type="checkbox" checked={isAllSelected} onChange={handleSelectAll} /></th>
                                     <th>Cédula</th>
-                                    <th>Teléfono</th> 
+                                    <th>Teléfono</th>
                                     <th>Nombre Archivo</th>
                                     <th>Peso</th>
                                     <th>Fecha</th>
@@ -281,7 +347,7 @@ const SearchRecordings = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {isLoading ? <tr><td colSpan="8" className="text-center py-5">Cargando...</td></tr> : 
+                                {isLoading ? <tr><td colSpan="8" className="text-center py-5">Cargando...</td></tr> :
                                  allData.length > 0 ? allData.map((item) => (
                                     <tr key={item.id}>
                                         <td className="ps-4"><input className={`form-check-input ${styles.checkbox}`} type="checkbox" checked={selectedItems.includes(item.id)} onChange={() => handleCheckboxChange(item.id)} /></td>
@@ -298,7 +364,7 @@ const SearchRecordings = () => {
                         </table>
                     </div>
                 </div>
-                
+
                 <div className="card-footer bg-white border-0 py-2 d-flex justify-content-end">
                     <button className="btn btn-sm btn-light me-1" disabled={pagination.currentPage === 1} onClick={() => setPagination({...pagination, currentPage: pagination.currentPage - 1})}><i className="bi bi-chevron-left"></i></button>
                     <span className="mx-2 align-self-center small">Página {pagination.currentPage} de {pagination.lastPage}</span>
