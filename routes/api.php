@@ -32,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Indexación
     Route::post('/indexing/scan', [IndexingController::class, 'scanFolder']);
     Route::post('/indexing/run', [IndexingController::class, 'runIndexing']);
+    Route::get('/indexing/progress', [App\Http\Controllers\IndexingController::class, 'getProgress']);
 
     // Busqueda de grabaciones
     Route::get('/search/folders', [SearchController::class, 'getFolders']); 

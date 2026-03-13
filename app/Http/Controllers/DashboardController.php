@@ -18,14 +18,11 @@ class DashboardController extends Controller
     {
         $allowedRanges = ['day', 'week', 'month'];
         $range = in_array($request->input('range'), $allowedRanges) ? $request->input('range') : 'month';
-        
-        // Version 12: Fuerza la limpieza de caché para aplicar la nueva regla de Importaciones
-        $cacheKey = 'dash_stats_v12_' . $range;
-        
+
         try {
-            // 1. ACTIVIDAD RECIENTE (En vivo)
+            // --- 1. ACTIVIDAD RECIENTE (En Vivo - Milisegundos) ---
             $recentActivity = AuditLog::with('user:id,name')
-                ->latest('id') 
+                ->latest('id')
                 ->take(7)
                 ->get()
                 ->map(function ($log) {
@@ -38,91 +35,83 @@ class DashboardController extends Controller
                     ];
                 });
 
-            // 2. ESTADÍSTICAS PESADAS (Caché)
-            $cacheTime = match ($range) {
-                'day' => 60,
-                'week' => 300,
-                default => 600,
-            };
+            // --- 2. KPIs GLOBALES (Caché Corto: 1 minuto) ---
+            $kpiCacheKey = 'dash_kpis_v13';
+            $kpis = Cache::remember($kpiCacheKey, 3600, function () {
+                $totalFiles = Recording::count();
+                $totalSize = Recording::sum('size');
+                $activeUsers = User::where('is_active', true)->count();
+                $downloadsToday = AuditLog::whereDate('created_at', Carbon::today())
+                    ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
+                    ->count();
 
-            $stats = Cache::remember($cacheKey, $cacheTime, function () use ($range) {
-                
+                // OPTIMIZACIÓN: Conteo de Bandeja de Entrada sin colapsar MySQL
+                $importLocationsIds = StorageLocation::where('name', 'like', '%Importaci%')->pluck('id');
+                $importFilesCount = Recording::whereIn('storage_location_id', $importLocationsIds)->count();
+                $nullFilesCount = Recording::whereNull('storage_location_id')->count();
+                $totalInbox = $importFilesCount + $nullFilesCount;
+
+                return [
+                    'files' => (int) $totalFiles,
+                    'size' => $this->formatBytes($totalSize),
+                    'users' => (int) $activeUsers,
+                    'downloads_today' => (int) $downloadsToday,
+                    'import_files' => (int) $totalInbox
+                ];
+            });
+
+            // --- 3. GRÁFICOS PESADOS (Caché Largo: 1 Hora) ---
+            $chartsCacheKey = 'dash_charts_v13_' . $range;
+            
+            // Los gráficos pesados se cachean por 1 hora, excepto si vemos el filtro "day" (15 min)
+            $chartsCacheTime = ($range === 'day') ? 900 : 3600;
+
+            $charts = Cache::remember($chartsCacheKey, $chartsCacheTime, function () use ($range) {
+
                 $startDate = match ($range) {
                     'day' => Carbon::now()->startOfDay(),
                     'week' => Carbon::now()->subDays(7)->startOfDay(),
                     default => Carbon::now()->subDays(30)->startOfDay(),
                 };
 
-                // KPI GLOBALES
-                $totalFiles = Recording::count();
-                $totalSize = Recording::sum('size');
-                $activeUsers = User::where('is_active', true)->count();
-                
-                $downloadsToday = AuditLog::whereDate('created_at', Carbon::today())
-                    ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
-                    ->count();
-
-                // BANDEJA DE ENTRADA
-                $importLocationsIds = StorageLocation::where('name', 'like', '%Importaci%')->pluck('id');
-                $importFilesCount = Recording::whereIn('storage_location_id', $importLocationsIds)
-                                             ->orWhereNull('storage_location_id')
-                                             ->count();
-
-                // 3. DEMANDA (Barras - Regla estricta para Importaciones)
+                // --- A. DEMANDA (Barras) ---
                 $demandStats = [];
-                
-                // OPTIMIZACIÓN: Solo traemos nombres de campañas puras, ignoramos importaciones desde la raíz
                 $motherFolders = StorageLocation::where('name', 'not like', '%Importaci%')->pluck('name')->toArray();
 
                 AuditLog::select('action', 'details', 'metadata')
                     ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
                     ->where('created_at', '>=', $startDate)
                     ->chunk(2000, function ($logs) use (&$demandStats, $motherFolders) {
-                        
                         foreach ($logs as $log) {
                             $found = false;
-                            
-                            // LECTURA JSON
                             if (!empty($log->metadata)) {
                                 $meta = is_string($log->metadata) ? json_decode($log->metadata, true) : $log->metadata;
                                 if (is_array($meta)) {
-                                    
                                     if (isset($meta['campaigns_breakdown']) || isset($meta['campaigns'])) {
                                         $breakdown = $meta['campaigns_breakdown'] ?? $meta['campaigns'];
                                         foreach ($breakdown as $name => $count) {
                                             $cleanName = $name ?: 'Otros / Sin clasificar';
-                                            
-                                            // REGLA CLAVE: Si dice "Importación" o "General", va a Otros
                                             if (stripos($cleanName, 'importaci') !== false || $cleanName === 'General') {
                                                 $cleanName = 'Otros / Sin clasificar';
                                             }
-                                            
                                             if (!isset($demandStats[$cleanName])) $demandStats[$cleanName] = 0;
                                             $demandStats[$cleanName] += (int)$count;
                                             $found = true;
                                         }
-                                    } 
-                                    elseif (isset($meta['campaign'])) {
+                                    } elseif (isset($meta['campaign'])) {
                                         $cleanName = $meta['campaign'] ?: 'Otros / Sin clasificar';
-                                        
-                                        // REGLA CLAVE
                                         if (stripos($cleanName, 'importaci') !== false || $cleanName === 'General') {
                                             $cleanName = 'Otros / Sin clasificar';
                                         }
-                                        
                                         if (!isset($demandStats[$cleanName])) $demandStats[$cleanName] = 0;
-                                        
                                         $archivosSumados = isset($meta['file_count']) ? (int)$meta['file_count'] : 1;
-                                        $demandStats[$cleanName] += $archivosSumados; 
+                                        $demandStats[$cleanName] += $archivosSumados;
                                         $found = true;
                                     }
                                 }
                             }
-
-                            // FALLBACK (Para logs viejos)
                             if (!$found && !empty($log->details)) {
                                 foreach ($motherFolders as $folderName) {
-                                    // Como $motherFolders ya no tiene importaciones, nunca hará match con ellas
                                     if (stripos($log->details, $folderName) !== false) {
                                         if (!isset($demandStats[$folderName])) $demandStats[$folderName] = 0;
                                         $demandStats[$folderName]++;
@@ -141,39 +130,34 @@ class DashboardController extends Controller
 
                 arsort($demandStats);
                 $topDemand = array_slice($demandStats, 0, 10);
-                
-                // DISTRIBUCIÓN (Dona) 
+
+                // --- B. DISTRIBUCIÓN (Dona) ---
                 $inventory = StorageLocation::where('is_active', true)
                     ->where('name', 'not like', '%Importaci%')
                     ->withCount('recordings')
                     ->having('recordings_count', '>', 0)
                     ->orderByDesc('recordings_count')
-                    ->limit(6) 
+                    ->limit(6)
                     ->get();
 
                 return [
-                    'kpi' => [
-                        'files' => (int) $totalFiles,
-                        'size' => $this->formatBytes($totalSize),
-                        'users' => (int) $activeUsers,
-                        'downloads_today' => (int) $downloadsToday,
-                        'import_files' => (int) $importFilesCount
+                    'campaigns' => [
+                        'labels' => array_keys($topDemand),
+                        'data' => array_values($topDemand)
                     ],
-                    'charts' => [
-                        'campaigns' => [ 
-                            'labels' => array_keys($topDemand), 
-                            'data' => array_values($topDemand) 
-                        ],
-                        'distribution' => [ 
-                            'labels' => $inventory->pluck('name'), 
-                            'data' => $inventory->pluck('recordings_count') 
-                        ]
+                    'distribution' => [
+                        'labels' => $inventory->pluck('name'),
+                        'data' => $inventory->pluck('recordings_count')
                     ]
                 ];
             });
 
-            $stats['activity'] = $recentActivity;
-            return response()->json($stats);
+            // ENSAMBLAJE FINAL
+            return response()->json([
+                'kpi' => $kpis,
+                'charts' => $charts,
+                'activity' => $recentActivity
+            ]);
 
         } catch (\Exception $e) {
             Log::error("Error en Dashboard: " . $e->getMessage());

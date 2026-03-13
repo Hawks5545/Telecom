@@ -10,62 +10,70 @@ use ZipArchive;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache; 
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
 class FolderManagerController extends Controller
 {
-    // --- 1. LISTAR CONTENIDO (OPTIMIZADO CON CACHÉ) ---
+    // --- 1. LISTAR CONTENIDO (ULTRA OPTIMIZADO) ---
     public function getItems(Request $request)
     {
         $parentId = (int) $request->input('parentId', 0);
         $search = $request->input('search');
         $dateFrom = $request->input('dateFrom');
         $dateTo = $request->input('dateTo');
-        $viewType = $request->input('viewType', 'virtual'); 
+        $viewType = $request->input('viewType', 'virtual');
 
-        // NIVEL 0: LISTAR CARPETAS MADRE (AHORA CON CACHÉ)
+        // NIVEL 0: LISTAR CARPETAS MADRE (Caché Inteligente y Agrupado)
         if ($parentId === 0) {
-            
+
             $cacheKey = "folders_list_{$viewType}_" . md5($search . $dateFrom . $dateTo);
-            
-            $cacheTime = ($search || $dateFrom || $dateTo) ? 0 : 300; 
+
+            // OPTIMIZACIÓN: 24 horas de caché normal, 60s si está usando filtros
+            $cacheTime = ($search || $dateFrom || $dateTo) ? 60 : 86400;
 
             $folders = Cache::remember($cacheKey, $cacheTime, function () use ($search, $dateFrom, $dateTo, $viewType) {
-                
-                $query = StorageLocation::where('is_active', true)
-                    ->withCount('recordings as items_count')
-                    ->withSum('recordings as total_size', 'size');
 
-                // --- LÓGICA CORREGIDA Y DINÁMICA ---
-                // Si la pestaña es "Campañas" (virtual), buscamos type='campaign'
-                // Si la pestaña es "Bandejas" (física), buscamos type='inbox'
+                // 1. Traer solo las carpetas (Vuela en milisegundos)
+                $query = StorageLocation::where('is_active', true);
+
                 if ($viewType === 'virtual') {
                     $query->where('type', 'campaign');
                 } else {
                     $query->where('type', 'inbox');
                 }
 
-                if ($search) {
-                    $query->where('name', 'like', "%{$search}%");
-                }
+                if ($search) $query->where('name', 'like', "%{$search}%");
                 if ($dateFrom) $query->where('created_at', '>=', Carbon::parse($dateFrom)->startOfDay());
                 if ($dateTo) $query->where('created_at', '<=', Carbon::parse($dateTo)->endOfDay());
 
                 $locations = $query->orderBy('name', 'asc')->get();
 
-                return $locations->map(function($loc) {
+                // 2. Extraer los IDs para buscar sus estadísticas de un solo golpe
+                $locationIds = $locations->pluck('id')->toArray();
+
+                // 3. Consulta cruda optimizada: Una sola pasada por la tabla gigante
+                $stats = \Illuminate\Support\Facades\DB::table('recordings')
+                    ->selectRaw('storage_location_id, COUNT(id) as items_count, SUM(size) as total_size')
+                    ->whereIn('storage_location_id', $locationIds)
+                    ->groupBy('storage_location_id')
+                    ->get()
+                    ->keyBy('storage_location_id');
+
+                // 4. Mapear y unir los datos en la memoria RAM (Súper rápido)
+                return $locations->map(function($loc) use ($stats) {
+                    $folderStats = $stats->get($loc->id);
                     return [
                         'id' => $loc->id,
                         'parentId' => 0,
                         'name' => $loc->name,
                         'type' => 'folder',
-                        'items' => $loc->items_count,
-                        'size_bytes' => (int) $loc->total_size ?? 0, 
+                        'items' => $folderStats ? (int) $folderStats->items_count : 0,
+                        'size_bytes' => $folderStats ? (int) $folderStats->total_size : 0,
                         'date' => $loc->created_at->format('Y-m-d'),
                         'path' => $loc->path,
-                        'is_virtual' => $loc->type === 'campaign' // Actualizado para usar la columna real
+                        'is_virtual' => $loc->type === 'campaign'
                     ];
                 });
             });
@@ -73,20 +81,24 @@ class FolderManagerController extends Controller
             return response()->json($folders);
         }
 
-        // NIVEL 1: LISTAR ARCHIVOS DENTRO DE UNA CARPETA
+        // NIVEL 1: LISTAR ARCHIVOS (Select limpio y SimplePaginate)
         $query = Recording::where('storage_location_id', $parentId);
+
+        // OPTIMIZACIÓN: Solo traemos las columnas estrictamente necesarias
+        $query->select('id', 'filename', 'size', 'fecha_grabacion', 'duration', 'cedula', 'campana', 'folder_path', 'storage_location_id');
 
         if ($search) {
              $query->where(function($q) use ($search) {
                 $q->where('filename', 'like', "%{$search}%")
-                  ->orWhere('cedula', 'like', "{$search}%") 
+                  ->orWhere('cedula', 'like', "{$search}%")
                   ->orWhere('telefono', 'like', "{$search}%");
             });
         }
         if ($dateFrom) $query->where('fecha_grabacion', '>=', Carbon::parse($dateFrom)->startOfDay());
         if ($dateTo) $query->where('fecha_grabacion', '<=', Carbon::parse($dateTo)->endOfDay());
 
-        $files = $query->latest('fecha_grabacion')->paginate(50);
+        // MAGIA: Adiós al lentísimo COUNT(*) de MySQL
+        $files = $query->latest('fecha_grabacion')->simplePaginate(50);
 
         $formattedFiles = $files->getCollection()->map(function($file) use ($parentId) {
             return [
@@ -105,7 +117,7 @@ class FolderManagerController extends Controller
                 ]
             ];
         });
-        
+
         $files->setCollection($formattedFiles);
         return response()->json($files);
     }
@@ -121,7 +133,7 @@ class FolderManagerController extends Controller
             $virtualPath = 'VIRTUAL/' . Str::slug($request->name, '_') . '_' . time();
 
             $folder = StorageLocation::create([
-                'type' => 'campaign', 
+                'type' => 'campaign',
                 'name' => $request->name,
                 'path' => $virtualPath,
                 'is_active' => true,
@@ -129,8 +141,8 @@ class FolderManagerController extends Controller
             ]);
 
             $this->logAudit('Crear Carpeta', "Nueva campaña virtual: {$request->name}", $request);
-            
-            Cache::flush(); 
+
+            Cache::flush();
 
             return response()->json([
                 'message' => 'Carpeta creada exitosamente.',
@@ -158,7 +170,7 @@ class FolderManagerController extends Controller
         $folder->delete();
 
         $this->logAudit('Eliminar Carpeta', "Eliminó la carpeta: {$folderName}", $request);
-        
+
         Cache::flush();
 
         return response()->json(['message' => 'Carpeta eliminada correctamente.']);
@@ -168,7 +180,7 @@ class FolderManagerController extends Controller
     public function updateFolder(Request $request, $id)
     {
         $folder = StorageLocation::findOrFail($id);
-        
+
         $request->validate([
             'name' => 'required|string|max:255|unique:storage_locations,name,' . $id
         ]);
@@ -177,26 +189,26 @@ class FolderManagerController extends Controller
         $folder->update(['name' => $request->name]);
 
         $this->logAudit('Renombrar Carpeta', "Cambió nombre de '{$oldName}' a '{$request->name}'", $request);
-        
+
         Cache::flush();
 
         return response()->json(['message' => 'Carpeta actualizada.', 'folder' => $folder]);
     }
-    
+
     // --- 5. DESCARGA INDIVIDUAL ---
     public function downloadItem(Request $request, $id)
     {
         $recording = Recording::findOrFail($id);
-        
+
         if (!file_exists($recording->full_path)) {
             return response()->json(['message' => 'Archivo físico no encontrado en el servidor.'], 404);
         }
 
         $campaignName = $recording->storageLocation->name ?? 'General';
-        
+
         $this->logAudit(
-            'Descarga', 
-            "Individual: {$recording->filename}", 
+            'Descarga',
+            "Individual: {$recording->filename}",
             $request,
             ['campaign' => $campaignName, 'file_size' => $recording->size]
         );
@@ -207,7 +219,7 @@ class FolderManagerController extends Controller
         ]);
     }
 
-    // --- 6. DESCARGA ZIP DE CARPETA COMPLETA ---
+    // --- 6. DESCARGA ZIP DE CARPETA COMPLETA (Blindada) ---
     public function downloadFolder(Request $request, $id)
     {
         set_time_limit(0);
@@ -215,9 +227,11 @@ class FolderManagerController extends Controller
 
         try {
             $location = StorageLocation::findOrFail($id);
-            
+
+            // OPTIMIZACIÓN: Limitamos a 2000 archivos para que el servidor no explote por falta de RAM
             $recordings = Recording::where('storage_location_id', $id)
                 ->select('id', 'filename', 'full_path', 'folder_path')
+                ->limit(2000)
                 ->get();
 
             if ($recordings->isEmpty()) return response()->json(['message' => 'La carpeta está vacía.'], 400);
@@ -231,7 +245,7 @@ class FolderManagerController extends Controller
             $zip = new ZipArchive;
             if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
                 $filesAdded = 0;
-                
+
                 foreach ($recordings as $rec) {
                     if (file_exists($rec->full_path)) {
                         $zip->addFile($rec->full_path, $rec->filename);
@@ -242,9 +256,14 @@ class FolderManagerController extends Controller
 
                 if ($filesAdded === 0) return response()->json(['message' => 'Archivos físicos no encontrados.'], 404);
 
+                $mensajeAuditoria = "Carpeta: {$location->name} ($filesAdded archivos).";
+                if ($recordings->count() == 2000) {
+                    $mensajeAuditoria .= " (Se aplicó límite de seguridad de 2000 archivos)";
+                }
+
                 $this->logAudit(
-                    'Descarga ZIP Folder', 
-                    "Carpeta: {$location->name} ($filesAdded archivos).", 
+                    'Descarga ZIP Folder',
+                    $mensajeAuditoria,
                     $request,
                     ['campaign' => $location->name, 'file_count' => $filesAdded]
                 );

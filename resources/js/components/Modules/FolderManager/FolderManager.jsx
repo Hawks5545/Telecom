@@ -17,8 +17,16 @@ const FolderManager = () => {
     const [allFolders, setAllFolders] = useState([]);
     const [isMoving, setIsMoving] = useState(false);
 
-    // Paginación
-    const [pagination, setPagination] = useState({ currentPage: 1, lastPage: 1, total: 0, from: 0, to: 0 });
+    // Paginación (Adaptada para Big Data)
+    const [pagination, setPagination] = useState({ 
+        currentPage: 1, 
+        total: 0, 
+        from: 0, 
+        to: 0,
+        hasNext: false,
+        hasPrev: false,
+        isFolderView: true
+    });
 
     // Filtros
     const [searchTerm, setSearchTerm] = useState('');
@@ -75,18 +83,30 @@ const FolderManager = () => {
 
             if (response.ok) {
                 const data = await response.json();
+                
+                // Si trae "data.data", significa que es paginación simple de archivos (Nivel 1)
                 if (data.data) {
                     setFileSystemData(data.data);
                     setPagination({
                         currentPage: data.current_page,
-                        lastPage: data.last_page,
-                        total: data.total,
                         from: data.from,
-                        to: data.to
+                        to: data.to,
+                        hasNext: data.next_page_url !== null,
+                        hasPrev: data.prev_page_url !== null,
+                        isFolderView: false
                     });
                 } else {
+                    // Si trae un arreglo directo, son las carpetas (Nivel 0)
                     setFileSystemData(data);
-                    setPagination({ currentPage: 1, lastPage: 1, total: data.length, from: 1, to: data.length });
+                    setPagination({ 
+                        currentPage: 1, 
+                        total: data.length, 
+                        from: 1, 
+                        to: data.length,
+                        hasNext: false,
+                        hasPrev: false,
+                        isFolderView: true
+                    });
                 }
                 setSelectedItems([]);
             }
@@ -97,21 +117,19 @@ const FolderManager = () => {
         }
     }, [currentFolderId, searchTerm, dateFrom, dateTo, viewType]);
 
-    // 1. Carga INMEDIATA
+    // Carga inicial y al cambiar de vista o carpeta
     useEffect(() => {
         fetchItems(1);
-    }, [currentFolderId, viewType, fetchItems]);
+    }, [currentFolderId, viewType]);
 
-    // 2. Carga CON RETRASO (Debounce) para búsquedas
+    // Búsquedas con retraso (Debounce)
     useEffect(() => {
         if (searchTerm === '' && dateFrom === '' && dateTo === '') return;
-
         const timer = setTimeout(() => {
             fetchItems(1);
         }, 600);
-
         return () => clearTimeout(timer);
-    }, [searchTerm, dateFrom, dateTo, fetchItems]);
+    }, [searchTerm, dateFrom, dateTo]);
 
 
     // Cargar lista de carpetas para modal
@@ -221,7 +239,7 @@ const FolderManager = () => {
     };
 
     const handlePageChange = (newPage) => {
-        if (newPage >= 1 && newPage <= pagination.lastPage) fetchItems(newPage);
+        fetchItems(newPage);
     };
 
     const handleOpenFolder = (folder) => {
@@ -237,7 +255,7 @@ const FolderManager = () => {
         const sizeInfo = item.size_bytes ? formatBytes(item.size_bytes) : 'Desconocido';
         const title = isFolder ? 'Descargar Carpeta ZIP' : 'Descargar Archivo';
         const msg = isFolder
-            ? `Vas a descargar "${item.name}".\n\nPeso total aproximado: ${sizeInfo}.\n\nSe creará un ZIP. ¿Deseas continuar?`
+            ? `Vas a descargar "${item.name}".\n\nPor seguridad del servidor, el ZIP contendrá un máximo de 2000 grabaciones de esta campaña.\n\n¿Deseas continuar?`
             : `¿Deseas descargar "${item.name}"?\nPeso: ${sizeInfo}`;
         showAlert('info', title, msg, () => executeDownload(item));
     };
@@ -251,33 +269,29 @@ const FolderManager = () => {
             : `/api/folder-manager/download/${item.id}?t=${timestamp}`;
 
         try {
-            // Fase 1: Informar que el servidor está preparando el archivo
             showAlert('loading', isFolder ? 'Preparando ZIP...' : 'Conectando...', 'Comprimiendo archivos en el servidor. Esto puede tardar unos segundos...');
-            
+
             const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-            
+
             if (!response.ok) {
                 const errorData = await response.json();
                 return showAlert('error', 'Error', errorData.message || 'Archivo no disponible.');
             }
 
-            // Fase 2: Streaming de la descarga con Throttling (Optimización de Rendimiento)
             const reader = response.body.getReader();
             const contentLength = +response.headers.get('Content-Length');
-            
+
             let receivedLength = 0;
             const chunks = [];
             let lastUiUpdateTime = Date.now();
 
             while(true) {
                 const {done, value} = await reader.read();
-                
                 if (done) break;
-                
+
                 chunks.push(value);
                 receivedLength += value.length;
 
-                // Throttling: Solo actualizamos la pantalla cada 250ms para no congelar React
                 const now = Date.now();
                 if (now - lastUiUpdateTime > 250) {
                     const mb = (receivedLength / (1024 * 1024)).toFixed(2);
@@ -285,31 +299,29 @@ const FolderManager = () => {
                         const percent = ((receivedLength / contentLength) * 100).toFixed(0);
                         showAlert('loading', 'Descargando...', `Progreso: ${percent}%  (${mb} MB)`);
                     } else {
-                        // Si el servidor no envía el peso final, mostramos los MB descargados
                         showAlert('loading', 'Descargando...', `Recibiendo datos: ${mb} MB descargados...`);
                     }
                     lastUiUpdateTime = now;
                 }
             }
 
-            // Fase 3: Ensamblar y forzar la descarga en el navegador
             showAlert('loading', 'Finalizando...', 'Guardando el archivo en tu equipo...');
-            
+
             const blob = new Blob(chunks);
             const link = window.URL.createObjectURL(blob);
-            const a = document.createElement('a'); 
+            const a = document.createElement('a');
             a.href = link;
             a.download = isFolder ? `${item.name}.zip` : item.name;
-            document.body.appendChild(a); 
-            a.click(); 
-            a.remove(); 
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
             window.URL.revokeObjectURL(link);
-            
+
             closeAlert();
 
-        } catch (error) { 
+        } catch (error) {
             console.error("Error de red durante la descarga:", error);
-            showAlert('error', 'Error', 'Se perdió la conexión durante la descarga.'); 
+            showAlert('error', 'Error', 'Se perdió la conexión durante la descarga.');
         }
     };
 
@@ -459,6 +471,9 @@ const FolderManager = () => {
                                                 {item.type === 'folder' ? (
                                                     <>
                                                         <button className={`btn btn-sm btn-outline-secondary me-1`} onClick={() => handleOpenFolder(item)} title="Abrir"><i className="bi bi-folder2-open"></i></button>
+                                                        {/* BOTÓN DESCARGAR CARPETA RESTAURADO */}
+                                                        <button className={`btn btn-sm btn-outline-success me-1`} onClick={() => handleDownload(item)} title="Descargar ZIP"><i className="bi bi-file-earmark-zip"></i></button>
+                                                        
                                                         <button className="btn btn-sm btn-outline-primary me-1" onClick={() => { setEditingFolder(item); setNewFolderName(item.name); setShowCreateModal(true); }}><i className="bi bi-pencil"></i></button>
                                                         <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteFolder(item)}><i className="bi bi-trash"></i></button>
                                                     </>
@@ -476,19 +491,36 @@ const FolderManager = () => {
                     </div>
                 </div>
 
-                {/* FOOTER PAGINACIÓN CORREGIDO */}
-                {pagination.total > 0 && (
+                {/* FOOTER PAGINACIÓN ADAPTADO PARA BIG DATA */}
+                {(pagination.from > 0 || pagination.total > 0) && (
                     <div className="card-footer bg-white border-0 py-2 d-flex justify-content-between align-items-center">
-                        <div className="text-muted small">Mostrando {pagination.from || 0}-{pagination.to || 0} de {pagination.total}</div>
-                        <div>
-                            <button className="btn btn-sm btn-light me-1" disabled={pagination.currentPage === 1} onClick={() => handlePageChange(pagination.currentPage - 1)}>
-                                <i className="bi bi-chevron-left"></i>
-                            </button>
-                            <span className="mx-2 align-self-center small">Página {pagination.currentPage}</span>
-                            <button className="btn btn-sm btn-light ms-1" disabled={pagination.currentPage === pagination.lastPage || pagination.lastPage === 0} onClick={() => handlePageChange(pagination.currentPage + 1)}>
-                                <i className="bi bi-chevron-right"></i>
-                            </button>
+                        <div className="text-muted small">
+                            {pagination.isFolderView 
+                                ? `Mostrando ${pagination.total} carpetas`
+                                : `Mostrando audios ${pagination.from || 0} - ${pagination.to || 0}`
+                            }
                         </div>
+                        
+                        {/* Botones de Siguiente/Anterior solo se muestran si estamos viendo archivos */}
+                        {!pagination.isFolderView && (
+                            <div>
+                                <button 
+                                    className="btn btn-sm btn-light me-1" 
+                                    disabled={!pagination.hasPrev} 
+                                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                                >
+                                    <i className="bi bi-chevron-left"></i> Anterior
+                                </button>
+                                <span className="mx-2 align-self-center small">Página {pagination.currentPage}</span>
+                                <button 
+                                    className="btn btn-sm btn-light ms-1" 
+                                    disabled={!pagination.hasNext} 
+                                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                                >
+                                    Siguiente <i className="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

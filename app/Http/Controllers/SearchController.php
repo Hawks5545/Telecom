@@ -10,23 +10,27 @@ use ZipArchive;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB; 
-use Illuminate\Support\Facades\Cache; // NUEVO: Para sincronizar el Dashboard
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class SearchController extends Controller
 {
-    // --- 1. OBTENER CARPETAS ---
+    // --- 1. OBTENER CARPETAS (Optimizado con Caché de 24 horas) ---
     public function getFolders()
     {
-        return response()->json(
-            StorageLocation::where('is_active', true)
-                ->select('id', 'name', 'path') 
+        // Si ya buscó las carpetas hoy, las saca de la RAM al instante.
+        // Si no, va a MySQL, las busca y las guarda en la RAM por 86400 segundos (24h).
+        $folders = Cache::remember('active_folders_list', 86400, function () {
+            return StorageLocation::where('is_active', true)
+                ->select('id', 'name', 'path')
                 ->orderBy('name')
-                ->get()
-        );
+                ->get();
+        });
+
+        return response()->json($folders);
     }
 
-    // --- 2. BÚSQUEDA (Segurizada) ---
+    // --- 2. BÚSQUEDA (Segurizada y Ultra-optimizada) ---
     public function search(Request $request)
     {
         if ($request->filled('cedula') && strlen($request->cedula) < 4) {
@@ -34,15 +38,14 @@ class SearchController extends Controller
         }
 
         // SEGURIDAD: Nunca pasar request->all() directo a un scope.
-        // Extraemos explícitamente solo los parámetros válidos que tu modelo espera.
         $safeFilters = $request->only([
             'cedula', 'telefono', 'filename', 'dateFrom', 'dateTo', 'folder_id', 'campana'
         ]);
 
-        $results = Recording::with('storageLocation:id,name') 
-            ->filter($safeFilters) // Ahora es 100% seguro contra inyección
+        $results = Recording::with('storageLocation:id,name')
+            ->filter($safeFilters)
             ->orderBy('fecha_grabacion', 'desc')
-            ->paginate(15)
+            ->simplePaginate(15) // <--- MAGIA: Adiós al conteo masivo (COUNT)
             ->withQueryString();
 
         return response()->json($results);
@@ -58,18 +61,18 @@ class SearchController extends Controller
 
         return DB::transaction(function () use ($request) {
             $targetLocation = StorageLocation::findOrFail($request->target_folder_id);
-            
+
             // ACTUALIZACIÓN MASIVA
             $updatedCount = Recording::whereIn('id', $request->ids)
                 ->update([
                     'storage_location_id' => $targetLocation->id,
-                    'campana' => $targetLocation->name 
+                    'campana' => $targetLocation->name
                 ]);
 
             // Auditoría
             $this->auditAction(
-                'Mover Grabaciones', 
-                "Reasignó $updatedCount archivos a campaña: {$targetLocation->name}", 
+                'Mover Grabaciones',
+                "Reasignó $updatedCount archivos a campaña: {$targetLocation->name}",
                 $request,
                 [
                     'target_folder' => $targetLocation->name,
@@ -78,10 +81,8 @@ class SearchController extends Controller
                 ]
             );
 
-            // OPTIMIZACIÓN Y SINCRONIZACIÓN: 
-            // Al mover archivos, los totales cambian. Borramos el caché para que
-            // el Dashboard y el Gestor de carpetas se actualicen de inmediato.
-            Cache::flush();
+            // OPTIMIZACIÓN Y SINCRONIZACIÓN:
+            Cache::flush(); // Borramos el caché para que todo se actualice de inmediato
 
             return response()->json([
                 'message' => "Proceso exitoso. Se movieron $updatedCount grabaciones a {$targetLocation->name}.",
@@ -94,7 +95,7 @@ class SearchController extends Controller
     public function downloadItem(Request $request, $id)
     {
         $recording = Recording::findOrFail($id);
-        
+
         $pathToUse = $recording->full_path;
 
         if (!file_exists($pathToUse)) {
@@ -103,10 +104,10 @@ class SearchController extends Controller
         }
 
         $campaignName = $recording->storageLocation->name ?? 'General';
-        
+
         $this->auditAction(
-            'Descarga', 
-            "Individual: {$recording->filename}", 
+            'Descarga',
+            "Individual: {$recording->filename}",
             $request,
             ['campaign' => $campaignName, 'file_size' => $recording->size]
         );
@@ -124,23 +125,22 @@ class SearchController extends Controller
         ini_set('memory_limit', '512M');
 
         $ids = $request->input('ids', []);
-        
+
         if (empty($ids)) {
             return response()->json(['message' => 'Seleccione archivos.'], 400);
         }
 
-        // SEGURIDAD: Límite anti-colapso. 
-        // Evita que un usuario intente descargar 50,000 audios de golpe y tire el servidor.
+        // SEGURIDAD: Límite anti-colapso.
         $maxLimit = 1500;
         if (count($ids) > $maxLimit) {
             return response()->json(['message' => "Límite excedido. Por seguridad, solo puedes descargar hasta {$maxLimit} archivos por ZIP."], 422);
         }
 
-        $recordings = Recording::with('storageLocation:id,name') 
+        $recordings = Recording::with('storageLocation:id,name')
             ->whereIn('id', $ids)
-            ->select('id', 'filename', 'full_path', 'storage_location_id') 
+            ->select('id', 'filename', 'full_path', 'storage_location_id')
             ->get();
-        
+
         if ($recordings->isEmpty()) return response()->json(['message' => 'Archivos no encontrados.'], 404);
 
         $tempDir = storage_path('app/temp_zips');
@@ -158,7 +158,7 @@ class SearchController extends Controller
                 if (file_exists($rec->full_path)) {
                     $zip->addFile($rec->full_path, $rec->filename);
                     $filesAdded++;
-                    
+
                     $campName = $rec->storageLocation->name ?? 'General';
                     if (!isset($campaignCounts[$campName])) $campaignCounts[$campName] = 0;
                     $campaignCounts[$campName]++;
@@ -169,8 +169,8 @@ class SearchController extends Controller
             if ($filesAdded === 0) return response()->json(['message' => 'Ningún archivo físico encontrado.'], 404);
 
             $this->auditAction(
-                'Descarga ZIP', 
-                "ZIP con $filesAdded archivos.", 
+                'Descarga ZIP',
+                "ZIP con $filesAdded archivos.",
                 $request,
                 ['file_count' => $filesAdded, 'campaigns_breakdown' => $campaignCounts]
             );
@@ -192,8 +192,8 @@ class SearchController extends Controller
                 'metadata' => json_encode($metadata),
                 'ip_address' => $request->ip()
             ]);
-        } catch (\Exception $e) { 
-            report($e); 
+        } catch (\Exception $e) {
+            report($e);
         }
     }
 }
