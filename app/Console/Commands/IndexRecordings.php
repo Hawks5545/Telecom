@@ -4,104 +4,168 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
-use App\Models\Recording;
+use Illuminate\Support\Facades\DB;
 use App\Models\StorageLocation;
 
 class IndexRecordings extends Command
 {
-    protected $signature = 'telecom:index {path} {--job_id=terminal}';
-    protected $description = 'Indexador nivel BIG DATA (Streaming Puro - Cero RAM).';
+    protected $signature   = 'telecom:index {path} {--job_id=terminal}';
+    protected $description = 'Indexador nivel BIG DATA — Batch Insert + Streaming Puro (Cero RAM).';
 
     public function handle()
     {
         $inputPath = $this->argument('path');
-        $jobId = $this->option('job_id');
-
-        $rootPath = rtrim(str_replace('\\', '/', $inputPath), '/');
+        $jobId     = $this->option('job_id');
+        $rootPath  = rtrim(str_replace('\\', '/', $inputPath), '/');
 
         if (!is_dir($rootPath)) {
             $this->error("Error: La ruta '$rootPath' no existe.");
             return Command::FAILURE;
         }
 
-        // 1. CONTEO ULTRA RÁPIDO CON LINUX
-        $this->info("Contando millones de archivos con motor nativo de Linux...");
-        $countCmd = "find " . escapeshellarg($rootPath) . " -type f -iregex '.*\.\(mp3\|wav\|ogg\|aac\|wma\)$' | wc -l";
+        // 1. ESTADO INICIAL — TTL 24 horas
+        Cache::put("progress_{$jobId}", [
+            'status'     => 'starting',
+            'percentage' => 0,
+        ], 86400);
+
+        // 2. CONTEO CON TIMEOUT para evitar bloqueos eternos
+        $this->info("Contando archivos con motor nativo de Linux...");
+        $countCmd   = "timeout 3600 find " . escapeshellarg($rootPath)
+                    . " -type f -iregex '.*\.\(mp3\|wav\|ogg\|aac\|wma\)$' 2>/dev/null | wc -l";
         $totalFiles = (int) shell_exec($countCmd);
 
         if ($totalFiles === 0) {
-            Cache::put("progress_{$jobId}", ['status' => 'completed', 'percentage' => 100, 'nuevos' => 0, 'omitidos' => 0], 120);
+            Cache::put("progress_{$jobId}", [
+                'status'     => 'completed',
+                'percentage' => 100,
+                'nuevos'     => 0,
+                'omitidos'   => 0,
+            ], 86400);
             return Command::SUCCESS;
         }
 
-        $processed = 0; $nuevos = 0; $omitidos = 0;
+        $processed = 0;
+        $nuevos    = 0;
+        $omitidos  = 0;
+        $batch     = [];
 
         try {
-            // 2. CREAR LA ÚNICA RUTA PADRE
-            $location = StorageLocation::where('path', $rootPath)->orWhere('path', $rootPath . '/')->first();
+            // 3. CREAR O RECUPERAR LA RUTA PADRE
+            $location = StorageLocation::where('path', $rootPath)
+                ->orWhere('path', $rootPath . '/')
+                ->first();
+
             if (!$location) {
                 $baseName = basename($rootPath);
-                $name = $baseName;
-                $counter = 1;
+                $name     = $baseName;
+                $counter  = 1;
                 while (StorageLocation::where('name', $name)->exists()) {
                     $name = $baseName . '_' . $counter;
                     $counter++;
                 }
                 $location = StorageLocation::create([
-                    'path' => $rootPath, 'name' => $name, 'type' => 'inbox', 'is_active' => true
+                    'path'      => $rootPath,
+                    'name'      => $name,
+                    'type'      => 'inbox',
+                    'is_active' => true,
                 ]);
             }
+
             $rootLocationId = $location->id;
 
-            // 3. GENERADOR EN STREAMING PURO (Cero impacto en RAM)
-            $findCmd = "find " . escapeshellarg($rootPath) . " -type f -iregex '.*\.\(mp3\|wav\|ogg\|aac\|wma\)$'";
-            $handle = popen($findCmd, 'r');
+            // 4. CARGA GLOBAL DE DUPLICADOS EN CHUNKS DE 50,000
+            // Sin filtro de storage_location_id para detectar duplicados
+            // entre todas las ubicaciones y garantizar conteo exacto
+            $this->info("Cargando índice global de duplicados en chunks...");
+            $existingPaths = [];
+
+            DB::table('recordings')
+                ->select('full_path')
+                ->orderBy('id')
+                ->chunk(50000, function ($records) use (&$existingPaths) {
+                    foreach ($records as $record) {
+                        $existingPaths[$record->full_path] = true;
+                    }
+                });
+
+            $this->info("Índice cargado: " . count($existingPaths) . " paths existentes.");
+
+            // 5. STREAMING PURO CON BATCH INSERT
+            $findCmd = "timeout 7200 find " . escapeshellarg($rootPath)
+                     . " -type f -iregex '.*\.\(mp3\|wav\|ogg\|aac\|wma\)$' 2>/dev/null";
+            $handle  = popen($findCmd, 'r');
 
             if ($handle) {
                 while (($line = fgets($handle)) !== false) {
                     $fullPath = trim($line);
                     if (empty($fullPath)) continue;
 
-                    $filename = basename($fullPath);
-                    $actualFolderPath = rtrim(str_replace('\\', '/', dirname($fullPath)), '/');
-                    $size = @filesize($fullPath) ?: 0;
-
-                    // 4. PROCESAMIENTO
-                    if (Recording::where('full_path', $fullPath)->exists()) {
+                    if (isset($existingPaths[$fullPath])) {
                         $omitidos++;
                     } else {
-                        Recording::create([
-                            'filename' => $filename, 
-                            'full_path' => $fullPath,
-                            'folder_path' => $actualFolderPath, 
-                            'size' => $size,
+                        $batch[] = [
+                            'filename'            => basename($fullPath),
+                            'full_path'           => $fullPath,
+                            'folder_path'         => rtrim(dirname($fullPath), '/'),
+                            'size'                => @filesize($fullPath) ?: 0,
+                            'extension'           => strtolower(pathinfo($fullPath, PATHINFO_EXTENSION)),
                             'storage_location_id' => $rootLocationId,
-                            'fecha_grabacion' => now()
-                        ]);
+                            'fecha_grabacion'     => now(),
+                        ];
                         $nuevos++;
                     }
 
                     $processed++;
-                    
-                    // Actualizamos a React cada 500 audios para no saturar
+
+                    // Insertar en lote cada 500 registros
+                    if (count($batch) >= 500) {
+                        DB::table('recordings')->insertOrIgnore($batch);
+                        $batch = [];
+                    }
+
+                    // Actualizar progreso cada 500 archivos procesados
                     if ($processed % 500 === 0 || $processed === $totalFiles) {
                         Cache::put("progress_{$jobId}", [
-                            'status' => 'processing',
-                            'percentage' => round(($processed / $totalFiles) * 100)
-                        ], 120);
+                            'status'     => 'processing',
+                            'percentage' => round(($processed / $totalFiles) * 100),
+                            'procesados' => $processed,
+                            'total'      => $totalFiles,
+                        ], 86400);
                     }
                 }
+
                 pclose($handle);
             }
 
-            // ÉXITO FINAL
+            // Insertar registros restantes
+            if (!empty($batch)) {
+                DB::table('recordings')->insertOrIgnore($batch);
+            }
+
+            // 6. ÉXITO FINAL
             Cache::put("progress_{$jobId}", [
-                'status' => 'completed', 'percentage' => 100, 'nuevos' => $nuevos, 'omitidos' => $omitidos
-            ], 120);
+                'status'     => 'completed',
+                'percentage' => 100,
+                'nuevos'     => $nuevos,
+                'omitidos'   => $omitidos,
+            ], 86400);
+
             return Command::SUCCESS;
 
         } catch (\Exception $e) {
-            Cache::put("progress_{$jobId}", ['status' => 'completed', 'percentage' => 100, 'nuevos' => $nuevos, 'omitidos' => $omitidos], 120);
+            if (!empty($batch)) {
+                try { DB::table('recordings')->insertOrIgnore($batch); } catch (\Exception $ignored) {}
+            }
+
+            Cache::put("progress_{$jobId}", [
+                'status'     => 'error',
+                'percentage' => $totalFiles > 0 ? round(($processed / $totalFiles) * 100) : 0,
+                'nuevos'     => $nuevos,
+                'omitidos'   => $omitidos,
+                'message'    => $e->getMessage(),
+            ], 86400);
+
             $this->error("Fallo general: " . $e->getMessage());
             return Command::FAILURE;
         }

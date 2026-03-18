@@ -144,23 +144,29 @@ const Configuration = () => {
     };
 
     const executeDeleteLocation = async (id) => {
-        const token = localStorage.getItem('auth_token');
-        const endpoint = activeSection === 'inbox_routes' ? `/api/config/storage/inbox/${id}` : `/api/config/storage/campaigns/${id}`;
+    const token = localStorage.getItem('auth_token');
+    const endpoint = activeSection === 'inbox_routes' 
+        ? `/api/config/storage/inbox/${id}` 
+        : `/api/config/storage/campaigns/${id}`;
 
-        try {
-            const response = await fetch(endpoint, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                fetchLocations();
-                showAlert('success', 'Eliminado', 'La ruta ha sido removida.');
-            } else { 
-                showAlert('error', 'Error', 'No se pudo eliminar la ruta.'); 
-            }
-        } catch (error) { console.error(error); }
-        finally { closeAlert(); }
-    };
+    try {
+        const response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            fetchLocations();
+            showAlert('success', 'Eliminado', 'La ruta ha sido removida.');
+        } else {
+            const data = await response.json();
+            showAlert('error', 'No se pudo eliminar', data.message || 'No se pudo eliminar la ruta.');
+        }
+    } catch (error) { 
+        console.error(error);
+        showAlert('error', 'Error de conexión', 'No se pudo conectar con el servidor.');
+    }
+
+};
 
     const handleSaveSettings = async () => {
         setIsSavingSettings(true);
