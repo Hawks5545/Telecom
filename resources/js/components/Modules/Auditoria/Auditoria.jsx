@@ -107,6 +107,7 @@ const Auditoria = () => {
         if (action.includes('inicio') || action.includes('login') || action.includes('sesión')) return styles.badgeLogin;
         if (action.includes('descarga')) return styles.badgeDownload;
         if (action.includes('eliminar') || action.includes('borrar')) return styles.badgeDelete;
+	if (action.includes('completada')) return styles.badgeSuccess;
         if (action.includes('index') || action.includes('carpeta') || action.includes('mover')) return styles.badgeSystem;
         return styles.badgeUpdate; // Ediciones de usuarios, roles, etc.
     };
@@ -195,6 +196,7 @@ const Auditoria = () => {
                                     <option value="Descarga ZIP">Descarga ZIP Masiva</option>
                                     <option value="Descarga ZIP Folder">Descarga ZIP Carpeta</option>
                                     <option value="Indexación">Indexación de Audios</option>
+				    <option value="Indexación Completada">Indexación Completada</option>
                                     <option value="Mover Grabaciones">Mover Grabaciones</option>
                                     <option value="Crear Carpeta">Crear Carpeta</option>
                                     <option value="Eliminar Carpeta">Eliminar Carpeta</option>

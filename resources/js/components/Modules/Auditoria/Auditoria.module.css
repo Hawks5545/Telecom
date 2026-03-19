@@ -124,6 +124,11 @@
 .badgeDelete { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
 .badgeUpdate { background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; }
 .badgeSystem { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+.badgeSuccess {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
 
 /* --- BLOQUE DE METADATA (TUS ESTILOS DE DETALLE RESPETADOS) --- */
 .metaContainer {

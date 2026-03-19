@@ -6,20 +6,17 @@ use Illuminate\Http\Request;
 use App\Models\Recording;
 use App\Models\StorageLocation;
 use App\Models\AuditLog;
-use ZipArchive;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use ZipStream\ZipStream;
 
 class SearchController extends Controller
 {
-    // --- 1. OBTENER CARPETAS (Optimizado con Caché de 24 horas) ---
+    // --- 1. OBTENER CARPETAS ---
     public function getFolders()
     {
-        // Si ya buscó las carpetas hoy, las saca de la RAM al instante.
-        // Si no, va a MySQL, las busca y las guarda en la RAM por 86400 segundos (24h).
         $folders = Cache::remember('active_folders_list', 86400, function () {
             return StorageLocation::where('is_active', true)
                 ->select('id', 'name', 'path')
@@ -30,14 +27,13 @@ class SearchController extends Controller
         return response()->json($folders);
     }
 
-    // --- 2. BÚSQUEDA (Segurizada y Ultra-optimizada) ---
+    // --- 2. BÚSQUEDA ---
     public function search(Request $request)
     {
         if ($request->filled('cedula') && strlen($request->cedula) < 4) {
             return response()->json(['message' => 'Escribe al menos 4 números.'], 422);
         }
 
-        // SEGURIDAD: Nunca pasar request->all() directo a un scope.
         $safeFilters = $request->only([
             'cedula', 'telefono', 'filename', 'dateFrom', 'dateTo', 'folder_id', 'campana'
         ]);
@@ -45,47 +41,52 @@ class SearchController extends Controller
         $results = Recording::with('storageLocation:id,name')
             ->filter($safeFilters)
             ->orderBy('fecha_grabacion', 'desc')
-            ->simplePaginate(15) // <--- MAGIA: Adiós al conteo masivo (COUNT)
+            ->simplePaginate(15)
             ->withQueryString();
 
         return response()->json($results);
     }
 
-    // --- 3. MOVER GRABACIONES (Sincronizado) ---
+    // --- 3. MOVER GRABACIONES ---
     public function moveRecordings(Request $request)
     {
         $request->validate([
-            'ids' => 'required|array',
+            'ids'              => 'required|array',
             'target_folder_id' => 'required|exists:storage_locations,id'
         ]);
 
         return DB::transaction(function () use ($request) {
             $targetLocation = StorageLocation::findOrFail($request->target_folder_id);
 
-            // ACTUALIZACIÓN MASIVA
             $updatedCount = Recording::whereIn('id', $request->ids)
                 ->update([
                     'storage_location_id' => $targetLocation->id,
-                    'campana' => $targetLocation->name
+                    'campana'             => $targetLocation->name
                 ]);
 
-            // Auditoría
             $this->auditAction(
                 'Mover Grabaciones',
                 "Reasignó $updatedCount archivos a campaña: {$targetLocation->name}",
                 $request,
                 [
                     'target_folder' => $targetLocation->name,
-                    'count' => $updatedCount,
-                    'mode' => 'virtual_move'
+                    'count'         => $updatedCount,
+                    'mode'          => 'virtual_move'
                 ]
             );
 
-            // OPTIMIZACIÓN Y SINCRONIZACIÓN:
-            Cache::flush(); // Borramos el caché para que todo se actualice de inmediato
+            // Borrar solo las claves necesarias — sin afectar jobs de indexación
+            Cache::forget('active_folders_list');
+            Cache::forget('dash_kpis_v14');
+            foreach (['virtual', 'physical'] as $type) {
+                Cache::forget("folders_list_{$type}_" . md5(''));
+            }
+            foreach (['day', 'week', 'month'] as $range) {
+                Cache::forget("dash_charts_v13_{$range}");
+            }
 
             return response()->json([
-                'message' => "Proceso exitoso. Se movieron $updatedCount grabaciones a {$targetLocation->name}.",
+                'message'     => "Proceso exitoso. Se movieron $updatedCount grabaciones a {$targetLocation->name}.",
                 'moved_count' => $updatedCount
             ]);
         });
@@ -95,7 +96,6 @@ class SearchController extends Controller
     public function downloadItem(Request $request, $id)
     {
         $recording = Recording::findOrFail($id);
-
         $pathToUse = $recording->full_path;
 
         if (!file_exists($pathToUse)) {
@@ -113,16 +113,16 @@ class SearchController extends Controller
         );
 
         return response()->download($pathToUse, $recording->filename, [
-            'Cache-Control' => 'no-cache, no-store, must-revalidate',
-            'Expires' => '0',
+            'Cache-Control'  => 'no-cache, no-store, must-revalidate',
+            'Content-Length' => filesize($pathToUse),
+            'Expires'        => '0',
         ]);
     }
 
-    // --- 5. DESCARGA ZIP MASIVA (Blindada) ---
+    // --- 5. DESCARGA ZIP MASIVA CON ZIPSTREAM ---
     public function downloadZip(Request $request)
     {
         set_time_limit(0);
-        ini_set('memory_limit', '512M');
 
         $ids = $request->input('ids', []);
 
@@ -130,10 +130,11 @@ class SearchController extends Controller
             return response()->json(['message' => 'Seleccione archivos.'], 400);
         }
 
-        // SEGURIDAD: Límite anti-colapso.
-        $maxLimit = 1500;
+        $maxLimit = 5000;
         if (count($ids) > $maxLimit) {
-            return response()->json(['message' => "Límite excedido. Por seguridad, solo puedes descargar hasta {$maxLimit} archivos por ZIP."], 422);
+            return response()->json([
+                'message' => "Límite excedido. Por seguridad, solo puedes descargar hasta {$maxLimit} archivos por ZIP."
+            ], 422);
         }
 
         $recordings = Recording::with('storageLocation:id,name')
@@ -141,44 +142,57 @@ class SearchController extends Controller
             ->select('id', 'filename', 'full_path', 'storage_location_id')
             ->get();
 
-        if ($recordings->isEmpty()) return response()->json(['message' => 'Archivos no encontrados.'], 404);
-
-        $tempDir = storage_path('app/temp_zips');
-        if (!File::exists($tempDir)) File::makeDirectory($tempDir, 0755, true);
-
-        $zipName = 'Seleccion_' . date('Ymd_His') . '.zip';
-        $zipPath = $tempDir . '/' . $zipName;
-
-        $zip = new ZipArchive;
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
-            $filesAdded = 0;
-            $campaignCounts = [];
-
-            foreach ($recordings as $rec) {
-                if (file_exists($rec->full_path)) {
-                    $zip->addFile($rec->full_path, $rec->filename);
-                    $filesAdded++;
-
-                    $campName = $rec->storageLocation->name ?? 'General';
-                    if (!isset($campaignCounts[$campName])) $campaignCounts[$campName] = 0;
-                    $campaignCounts[$campName]++;
-                }
-            }
-            $zip->close();
-
-            if ($filesAdded === 0) return response()->json(['message' => 'Ningún archivo físico encontrado.'], 404);
-
-            $this->auditAction(
-                'Descarga ZIP',
-                "ZIP con $filesAdded archivos.",
-                $request,
-                ['file_count' => $filesAdded, 'campaigns_breakdown' => $campaignCounts]
-            );
-
-            return response()->download($zipPath, $zipName)->deleteFileAfterSend(true);
+        if ($recordings->isEmpty()) {
+            return response()->json(['message' => 'Archivos no encontrados.'], 404);
         }
 
-        return response()->json(['message' => 'Error crítico al generar ZIP.'], 500);
+        $zipName        = 'Seleccion_' . date('Ymd_His') . '.zip';
+        $campaignCounts = [];
+
+        foreach ($recordings as $rec) {
+            $campName = $rec->storageLocation->name ?? 'General';
+            if (!isset($campaignCounts[$campName])) $campaignCounts[$campName] = 0;
+            $campaignCounts[$campName]++;
+        }
+
+        // Auditoría ANTES de iniciar el stream
+        $this->auditAction(
+            'Descarga ZIP',
+            "ZIP con {$recordings->count()} archivos.",
+            $request,
+            ['file_count' => $recordings->count(), 'campaigns_breakdown' => $campaignCounts]
+        );
+
+        // STREAMING DIRECTO AL NAVEGADOR
+        return response()->stream(function () use ($recordings, $zipName) {
+
+            $zip = new ZipStream(
+                outputName: $zipName,
+                sendHttpHeaders: false,
+            );
+
+            foreach ($recordings as $rec) {
+                if (!file_exists($rec->full_path)) continue;
+
+                try {
+                    $zip->addFileFromPath(
+                        fileName: $rec->filename,
+                        path: $rec->full_path,
+                    );
+                } catch (\Exception $e) {
+                    Log::warning("ZipStream: No se pudo agregar {$rec->filename}: " . $e->getMessage());
+                }
+            }
+
+            $zip->finish();
+
+        }, 200, [
+            'Content-Type'        => 'application/zip',
+            'Content-Disposition' => 'attachment; filename="' . $zipName . '"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+            'X-Accel-Buffering'   => 'no',
+            'Expires'             => '0',
+        ]);
     }
 
     // Helper privado
@@ -186,10 +200,10 @@ class SearchController extends Controller
     {
         try {
             AuditLog::create([
-                'user_id' => Auth::id(),
-                'action' => $action,
-                'details' => $details,
-                'metadata' => json_encode($metadata),
+                'user_id'    => Auth::id(),
+                'action'     => $action,
+                'details'    => $details,
+                'metadata'   => json_encode($metadata),
                 'ip_address' => $request->ip()
             ]);
         } catch (\Exception $e) {

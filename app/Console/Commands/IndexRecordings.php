@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Models\StorageLocation;
+use App\Models\AuditLog;
 
 class IndexRecordings extends Command
 {
@@ -42,6 +43,10 @@ class IndexRecordings extends Command
                 'nuevos'     => 0,
                 'omitidos'   => 0,
             ], 86400);
+
+            $this->logAudit(null, 'Indexación Completada',
+                "Ruta: {$rootPath} — Nuevos: 0 | Omitidos: 0 | Sin archivos de audio encontrados.");
+
             return Command::SUCCESS;
         }
 
@@ -75,8 +80,6 @@ class IndexRecordings extends Command
             $rootLocationId = $location->id;
 
             // 4. CARGA GLOBAL DE DUPLICADOS EN CHUNKS DE 50,000
-            // Sin filtro de storage_location_id para detectar duplicados
-            // entre todas las ubicaciones y garantizar conteo exacto
             $this->info("Cargando índice global de duplicados en chunks...");
             $existingPaths = [];
 
@@ -118,13 +121,11 @@ class IndexRecordings extends Command
 
                     $processed++;
 
-                    // Insertar en lote cada 500 registros
                     if (count($batch) >= 500) {
                         DB::table('recordings')->insertOrIgnore($batch);
                         $batch = [];
                     }
 
-                    // Actualizar progreso cada 500 archivos procesados
                     if ($processed % 500 === 0 || $processed === $totalFiles) {
                         Cache::put("progress_{$jobId}", [
                             'status'     => 'processing',
@@ -138,7 +139,6 @@ class IndexRecordings extends Command
                 pclose($handle);
             }
 
-            // Insertar registros restantes
             if (!empty($batch)) {
                 DB::table('recordings')->insertOrIgnore($batch);
             }
@@ -150,6 +150,11 @@ class IndexRecordings extends Command
                 'nuevos'     => $nuevos,
                 'omitidos'   => $omitidos,
             ], 86400);
+
+            // REGISTRO DE AUDITORÍA FINAL
+            $this->logAudit(null, 'Indexación Completada',
+                "Ruta: {$rootPath} — Nuevos: " . number_format($nuevos, 0, ',', '.') .
+                " | Omitidos: " . number_format($omitidos, 0, ',', '.'));
 
             return Command::SUCCESS;
 
@@ -166,8 +171,25 @@ class IndexRecordings extends Command
                 'message'    => $e->getMessage(),
             ], 86400);
 
+            // REGISTRO DE AUDITORÍA DE ERROR
+            $this->logAudit(null, 'Indexación Completada',
+                "Ruta: {$rootPath} — Error: " . $e->getMessage() .
+                " | Procesados hasta el fallo: " . number_format($processed, 0, ',', '.'));
+
             $this->error("Fallo general: " . $e->getMessage());
             return Command::FAILURE;
         }
+    }
+
+    private function logAudit($userId, $action, $details)
+    {
+        try {
+            AuditLog::create([
+                'user_id'    => $userId,
+                'action'     => $action,
+                'details'    => $details,
+                'ip_address' => 'Sistema',
+            ]);
+        } catch (\Exception $e) {}
     }
 }
