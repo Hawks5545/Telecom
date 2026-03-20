@@ -20,7 +20,8 @@ import Auditoria from './components/Modules/Auditoria/Auditoria';
 import Reportes from './components/Modules/Reportes/Reportes';
 import UsersRoles from './components/Modules/UsersRoles/UsersRoles';
 import Configuration from './components/Modules/Configuration/Configuration';
-import Dashboard from './components/Modules/Dashboard/Dashboard'; // <--- [NUEVO] Importamos el Dashboard
+import Dashboard from './components/Modules/Dashboard/Dashboard';
+import BulkDownload from './components/Modules/BulkDownload/BulkDownload';
 
 const LoginWrapper = () => {
     const navigate = useNavigate();
@@ -93,8 +94,10 @@ const MainApp = () => {
             case 'search': return <SearchRecordings />;
             case 'folders': return <FolderManager />;
             case 'indexing': return <Indexing />;
+		
+	    case 'bulk-download':
+	        return canSee('Descarga Masiva') ? <BulkDownload /> : <Navigate to="/dashboard" replace />;
             
-            // RUTAS PROTEGIDAS CON PERMISOS REALES
             case 'audits': 
                 return canSee('Auditorías') ? <Auditoria/> : <Navigate to="/dashboard" replace />;
             

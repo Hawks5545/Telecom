@@ -99,7 +99,22 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                         </li>
                     )}
 
-                    {/* 5. Auditorías */}
+
+		    {/* 5. Descarga Masiva */}
+		    {canSee('Descarga Masiva') && (
+			  <li className={styles.navItem}>
+			    <a     
+		                href="#"
+	                        className={`${styles.navLink} ${activeModule === 'bulk-download' ? styles.active : ''}`}
+			        onClick={(e) => handleNavClick('bulk-download', e)}
+			     >
+			        <i className={`bi bi-cloud-arrow-down-fill ${styles.icon}`}></i>
+			        <span className={styles.linkText}>Descarga Masiva</span>
+			    </a>
+		        </li>
+		    )}
+
+                    {/* 6. Auditorías */}
                     {canSee('Auditorías') && (
                         <li className={styles.navItem}>
                             <a 
@@ -113,7 +128,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                         </li>
                     )}
 
-                    {/* 6. Reportes */}
+                    {/* 7. Reportes */}
                     {canSee('Reportes') && (
                         <li className={styles.navItem}>
                             <a 
@@ -127,7 +142,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                         </li>
                     )}
 
-                    {/* 7. Usuarios y Roles (Lógica especial para Admin) */}
+                    {/* 8. Usuarios y Roles (Lógica especial para Admin) */}
                     {canSeeUsers() && (
                         <li className={styles.navItem}>
                             <a 
@@ -141,7 +156,7 @@ const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
                         </li>
                     )}
 
-                    {/* 8. Configuración (Solo Admin) */}
+                    {/* 9. Configuración (Solo Admin) */}
                     {role === 'admin' && (
                         <li className={styles.navItem}>
                             <a 

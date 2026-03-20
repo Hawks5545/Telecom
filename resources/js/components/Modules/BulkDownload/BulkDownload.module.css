@@ -1,0 +1,210 @@
+/* --- ANIMACIONES --- */
+.fadeIn {
+    animation: fadeIn 0.5s ease-in-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- ESTRUCTURA --- */
+.fullHeightContainer {
+    height: calc(100vh - 90px);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+    padding-bottom: 2rem;
+}
+
+.pageTitle {
+    color: #005461;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+/* --- CARDS --- */
+.cardCustom {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1rem;
+    background-color: white;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+.cardHeader {
+    background: linear-gradient(90deg, #005461 0%, #0C7779 100%);
+    color: white;
+    font-weight: 600;
+    padding: 0.8rem 1.2rem;
+    border-radius: 12px 12px 0 0;
+}
+
+/* --- ZONA DE CARGA DE ARCHIVO --- */
+.dropZone {
+    border: 2px dashed #3BC1A8;
+    border-radius: 12px;
+    padding: 2.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background-color: #f8fffe;
+}
+
+.dropZone:hover {
+    background-color: #e8faf7;
+    border-color: #005461;
+}
+
+.dropZoneActive {
+    background-color: #e8faf7;
+    border-color: #005461;
+    border-style: solid;
+}
+
+.dropZoneIcon {
+    font-size: 3rem;
+    color: #3BC1A8;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.dropZoneText {
+    color: #005461;
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.dropZoneSubtext {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+/* --- TARJETAS DE ESTADÍSTICAS --- */
+.statCard {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+}
+
+.statCard:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    border-color: #3BC1A8;
+}
+
+.statTitle {
+    color: #6c757d;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+}
+
+.statValue {
+    color: #005461;
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.statIcon {
+    font-size: 1.8rem;
+    color: #3BC1A8;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.statIconDanger { color: #dc3545; }
+.statIconSuccess { color: #198754; }
+
+/* --- TABLA DE RESULTADOS --- */
+.tableWrapper {
+    max-height: 300px;
+    overflow-y: auto;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.tableWrapper::-webkit-scrollbar { width: 8px; }
+.tableWrapper::-webkit-scrollbar-track { background: #e9ecef; border-radius: 4px; }
+.tableWrapper::-webkit-scrollbar-thumb { background: #adb5bd; border-radius: 4px; }
+
+.tableHeader th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #005461 !important;
+    color: white;
+    font-weight: 600;
+    border: none;
+    padding: 0.75rem 1rem;
+}
+
+/* --- BOTONES --- */
+.btnUpload {
+    background-color: #005461;
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 0.6rem 1.5rem;
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+
+.btnUpload:hover {
+    background-color: #003d46;
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btnDownload {
+    background-color: #3BC1A8;
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 0.8rem 2rem;
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+
+.btnDownload:hover {
+    background-color: #2ea891;
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btnReset {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+    font-weight: 500;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+
+.btnReset:hover {
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+/* --- BADGES --- */
+.badgeFound    { background-color: #d1e7dd; color: #0f5132; }
+.badgeNotFound { background-color: #f8d7da; color: #842029; }
+
+/* --- RESPONSIVE --- */
+@media (max-width: 768px) {
+    .fullHeightContainer { height: auto; overflow-y: visible; }
+    .dropZone { padding: 1.5rem; }
+    .btnDownload, .btnReset { width: 100%; margin-bottom: 0.5rem; }
+}

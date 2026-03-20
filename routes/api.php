@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\IndexingController; 
+use App\Http\Controllers\IndexingController;
 use App\Http\Controllers\FolderManagerController;
 use App\Http\Controllers\ConfigurationController;
 use App\Http\Controllers\SearchController;
@@ -17,10 +17,10 @@ use App\Http\Controllers\DashboardController;
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLink']);
 Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+Route::get('/bulk-download/stream/{token}', [App\Http\Controllers\BulkDownloadController::class, 'streamByToken']);
 
 // --- RUTAS PROTEGIDAS ---
 Route::middleware('auth:sanctum')->group(function () {
-    
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -48,6 +48,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/folder-manager/create', [FolderManagerController::class, 'createFolder']);
     Route::delete('/folder-manager/{id}', [FolderManagerController::class, 'deleteFolder']);
     Route::put('/folder-manager/{id}', [FolderManagerController::class, 'updateFolder']);
+
+    // Descarga Masiva por Listado
+    Route::post('/bulk-download/preview',  [App\Http\Controllers\BulkDownloadController::class, 'preview']);
+    Route::post('/bulk-download/token',    [App\Http\Controllers\BulkDownloadController::class, 'generateToken']);
 
     // Auditoría
     Route::get('/audit/logs', [AuditController::class, 'index']);
