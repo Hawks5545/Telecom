@@ -4,15 +4,15 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User; 
-use App\Models\AuditLog; 
+use App\Models\User;
+use App\Models\AuditLog;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRules;
-use Illuminate\Support\Facades\RateLimiter; 
-use Illuminate\Support\Facades\Cache; // NUEVO: Para contar los strikes globales de la cuenta
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Cache;
 
 class AuthController extends Controller
 {
@@ -23,7 +23,7 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        // --- 🛡️ CAPA 1: RATE LIMITING (Bloqueo por IP) ---
+        // --- CAPA 1: RATE LIMITING ---
         $throttleKey = Str::transliterate(Str::lower($request->login_id).'|'.$request->ip());
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
@@ -33,36 +33,31 @@ class AuthController extends Controller
         }
 
         $loginId = $request->login_id;
-        $field = filter_var($loginId, FILTER_VALIDATE_EMAIL) ? 'email' : 'cedula';
-        
-        // Buscamos al usuario ANTES de validar la contraseña para saber a quién estamos atacando
-        $user = User::where($field, $loginId)->first();
+        $field   = filter_var($loginId, FILTER_VALIDATE_EMAIL) ? 'email' : 'cedula';
+        $user    = User::where($field, $loginId)->first();
 
-        // Si el usuario no existe, simulamos un fallo genérico (Anti-enumeración)
         if (!$user) {
             RateLimiter::hit($throttleKey);
             return response()->json(['message' => 'Credenciales incorrectas'], 401);
         }
 
-        // --- 🛡️ CAPA 2: BLOQUEO PERMANENTE DE CUENTA (Strikes) ---
+        // --- CAPA 2: BLOQUEO PERMANENTE DE CUENTA ---
         $strikesKey = 'login_strikes_' . $user->id;
-        
+
         if (!Hash::check($request->password, $user->password)) {
-            RateLimiter::hit($throttleKey); // Sumamos fallo a la IP
-            
-            // Sumamos un "Strike" global a la cuenta (dura 24 horas en memoria)
+            RateLimiter::hit($throttleKey);
+
             $strikes = Cache::increment($strikesKey);
             Cache::put($strikesKey, $strikes, now()->addHours(24));
 
-            // Si llega a 10 fallos y NO es el Super Admin (ID 1)
             if ($strikes >= 10 && $user->id !== 1 && $user->is_active == 1) {
-                $user->is_active = 0; // Lo bloqueamos
+                $user->is_active = 0;
                 $user->save();
 
                 AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => 'Seguridad',
-                    'details' => 'Cuenta bloqueada automáticamente por múltiples intentos fallidos de contraseña.',
+                    'user_id'    => $user->id,
+                    'action'     => 'Seguridad',
+                    'details'    => 'Cuenta bloqueada automáticamente por múltiples intentos fallidos de contraseña.',
                     'ip_address' => $request->ip()
                 ]);
             }
@@ -70,9 +65,9 @@ class AuthController extends Controller
             return response()->json(['message' => 'Credenciales incorrectas'], 401);
         }
 
-        // --- SI LA CONTRASEÑA ES CORRECTA, LIMPIAMOS EL HISTORIAL ---
+        // --- CONTRASEÑA CORRECTA — LIMPIAR HISTORIAL ---
         RateLimiter::clear($throttleKey);
-        Cache::forget($strikesKey); // Borramos los strikes
+        Cache::forget($strikesKey);
 
         // --- VALIDACIONES DE ESTADO ---
         if ($user->is_active == 0) {
@@ -82,47 +77,51 @@ class AuthController extends Controller
         }
 
         if ($user->email_verified_at === null) {
-            return response()->json(['message' => 'Tu cuenta está pendiente. Por favor revisa tu correo para activarla.'], 403);
+            return response()->json([
+                'message' => 'Tu cuenta está pendiente. Por favor revisa tu correo para activarla.'
+            ], 403);
         }
 
-        // --- CARGA DE ROLES ---
-        $user->load('role'); 
-        $rolInterno = $user->role ? $user->role->name : 'analista'; 
-        $rolVisible = $user->role ? $user->role->display_name : 'Analista'; 
-        $permisos = ($rolInterno === 'admin') ? ['*'] : ($user->role->permissions ?? []);
+        // --- CARGA DE ROLES Y PERMISOS ---
+        $user->load('role');
+        $rolInterno = $user->role ? $user->role->name         : 'analista';
+        $rolVisible = $user->role ? $user->role->display_name : 'Analista';
+        $permisos   = ($rolInterno === 'admin') ? ['*'] : ($user->role->permissions ?? []);
 
-        // AUDITORÍA LOGIN 
+        // AUDITORÍA LOGIN
         try {
             AuditLog::create([
-                'user_id' => $user->id,
-                'action' => 'Login',
-                'details' => "Inicio de sesión exitoso ({$field})",
+                'user_id'    => $user->id,
+                'action'     => 'Login',
+                'details'    => "Inicio de sesión exitoso ({$field})",
                 'ip_address' => $request->ip()
             ]);
         } catch (\Exception $e) {}
 
         return response()->json([
-            'message' => 'Bienvenido al sistema TeleCom',
+            'message'              => 'Bienvenido al sistema TeleCom',
+            'must_change_password' => (bool) $user->must_change_password, // ← NUEVO
             'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $rolInterno,          
-                'role_display' => $rolVisible, 
-                'permissions' => $permisos,
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'email'        => $user->email,
+                'role'         => $rolInterno,
+                'role_display' => $rolVisible,
+                'permissions'  => $permisos,
             ],
             'token' => $user->createToken('auth_token')->plainTextToken
         ], 200);
     }
-    
-    public function logout(Request $request) {
+
+    public function logout(Request $request)
+    {
         try {
             $user = $request->user();
             if ($user) {
                 AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => 'Logout',
-                    'details' => "Cierre de sesión",
+                    'user_id'    => $user->id,
+                    'action'     => 'Logout',
+                    'details'    => "Cierre de sesión",
                     'ip_address' => $request->ip()
                 ]);
             }
@@ -137,9 +136,8 @@ class AuthController extends Controller
         $request->validate(['login_id' => 'required|string']);
 
         $loginId = $request->login_id;
-        $field = filter_var($loginId, FILTER_VALIDATE_EMAIL) ? 'email' : 'cedula';
-        
-        $user = User::where($field, $loginId)->first();
+        $field   = filter_var($loginId, FILTER_VALIDATE_EMAIL) ? 'email' : 'cedula';
+        $user    = User::where($field, $loginId)->first();
 
         if ($user) {
             Password::sendResetLink(['email' => $user->email]);
@@ -152,14 +150,12 @@ class AuthController extends Controller
 
     public function resetPassword(Request $request)
     {
-        // --- 🔒 CAPA 3: POLÍTICA ESTRICTA DE CONTRASEÑAS ---
         $request->validate([
-            'token' => 'required',
-            'email' => 'required|email',
+            'token'    => 'required',
+            'email'    => 'required|email',
             'password' => [
                 'required',
                 'confirmed',
-                // Exigimos 12 caracteres, mayúsculas, minúsculas, números y símbolos
                 PasswordRules::min(12)->mixedCase()->numbers()->symbols()
             ],
         ]);
@@ -171,22 +167,64 @@ class AuthController extends Controller
                     'password' => Hash::make($password)
                 ])->setRememberToken(Str::random(60));
 
-                // Si la cuenta estaba pendiente o bloqueada, la reactivamos (Válvula de escape)
-                $user->email_verified_at = $user->email_verified_at ?? now();
-                $user->is_active = true; 
-                
+                $user->email_verified_at    = $user->email_verified_at ?? now();
+                $user->is_active            = true;
+                $user->must_change_password = false; // ← NUEVO: limpiar flag si usó el correo
                 $user->save();
+
                 event(new PasswordReset($user));
-                
-                // Limpiamos los strikes de bloqueos pasados
                 Cache::forget('login_strikes_' . $user->id);
             }
         );
 
         if ($status == Password::PASSWORD_RESET) {
-            return response()->json(['message' => '¡Contraseña establecida! Tu cuenta ahora está ACTIVA y segura. Ya puedes iniciar sesión.']);
+            return response()->json([
+                'message' => '¡Contraseña establecida! Tu cuenta ahora está ACTIVA y segura. Ya puedes iniciar sesión.'
+            ]);
         }
 
         return response()->json(['message' => 'El token es inválido o ha expirado.'], 400);
+    }
+
+    // --- CAMBIO DE CONTRASEÑA OBLIGATORIO (Primer Login) ---
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'password'         => [
+                'required',
+                'confirmed',
+                'different:current_password',
+                PasswordRules::min(12)->mixedCase()->numbers()->symbols()
+            ],
+        ], [
+            'password.different' => 'La nueva contraseña debe ser diferente a la actual.',
+            'password.min'       => 'La contraseña debe tener al menos 12 caracteres.',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'La contraseña actual es incorrecta.'
+            ], 422);
+        }
+
+        $user->password             = Hash::make($request->password);
+        $user->must_change_password = false;
+        $user->save();
+
+        try {
+            AuditLog::create([
+                'user_id'    => $user->id,
+                'action'     => 'Cambio de Contraseña',
+                'details'    => 'El usuario cambió su contraseña temporal por una nueva.',
+                'ip_address' => $request->ip()
+            ]);
+        } catch (\Exception $e) {}
+
+        return response()->json([
+            'message' => '¡Contraseña actualizada exitosamente!'
+        ]);
     }
 }

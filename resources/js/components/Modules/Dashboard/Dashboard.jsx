@@ -43,7 +43,7 @@ const Dashboard = () => {
             setLoading(true); setError(null);
             const token = localStorage.getItem('auth_token');
             try {
-                const res = await fetch(`/api/dashboard/stats?range=${timeRange}&t=${new Date().getTime()}`, {
+                const res = await fetch(`/api/dashboard/stats?range=${timeRange}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!res.ok) throw new Error(`Error ${res.status}`);

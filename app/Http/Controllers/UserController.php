@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Role;
-use App\Models\AuditLog; // NUEVO: Para guardar las auditorías
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Facades\Auth; // NUEVO: Para saber quién hace la acción
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -21,80 +21,75 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validaciones
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'name'   => 'required|string|max:255',
+            'email'  => 'required|string|email|max:255|unique:users',
             'cedula' => 'required|string|max:20|unique:users',
-            'role' => 'required|exists:roles,name', 
+            'role'   => 'required|exists:roles,name',
         ], [
-            'email.unique' => 'Este correo electrónico ya está registrado.',
+            'email.unique'  => 'Este correo electrónico ya está registrado.',
             'cedula.unique' => 'Esta cédula ya está registrada en el sistema.',
-            'role.exists' => 'El rol seleccionado no es válido.',
+            'role.exists'   => 'El rol seleccionado no es válido.',
         ]);
 
-        // 2. TRADUCCIÓN: Buscamos el ID del rol basado en el nombre
         $roleModel = Role::where('name', $request->role)->first();
 
-        // Genera contraseña temporal aleatoria
-        $tempPassword = Str::random(20); 
+        // Generar contraseña temporal legible y segura
+        // Formato: 3 letras mayúsculas + 3 números + 3 letras minúsculas + 2 símbolos
+        $tempPassword = $this->generateTempPassword();
 
-        // 3. Crear Usuario (SOLO con role_id)
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'cedula' => $request->cedula,
-            'role_id' => $roleModel->id,   
-            'password' => Hash::make($tempPassword),
-            'is_active' => true,     
-            'email_verified_at' => null,   
+            'name'                 => $request->name,
+            'email'                => $request->email,
+            'cedula'               => $request->cedula,
+            'role_id'              => $roleModel->id,
+            'password'             => Hash::make($tempPassword),
+            'is_active'            => true,
+            'email_verified_at'    => now(), // ← Activo de inmediato, sin esperar correo
+            'must_change_password' => true,  // ← Debe cambiar al primer login
         ]);
 
-        // 4. Enviar correo de activación
-        $token = Password::createToken($user);
-        $user->sendPasswordResetNotification($token);
         $user->load('role');
 
-        // --- 🔒 AUDITORÍA: CREACIÓN DE USUARIO ---
         $this->auditAction(
-            'Crear Usuario', 
+            'Crear Usuario',
             "Creó al usuario: {$user->name} con rol de {$request->role}.",
             $request,
             [
-                'target_user_id' => $user->id,
+                'target_user_id'   => $user->id,
                 'target_user_name' => $user->name,
-                'assigned_role' => $request->role
+                'assigned_role'    => $request->role
             ]
         );
 
         return response()->json([
-            'message' => 'Usuario registrado. Se ha enviado el correo para activar la cuenta.',
-            'user' => $user
+            'message'       => 'Usuario registrado exitosamente.',
+            'user'          => $user,
+            'temp_password' => $tempPassword, // ← Solo se muestra una vez al admin
         ], 201);
     }
 
     public function update(Request $request, $id)
     {
-        $user = User::with('role')->findOrFail($id); // Cargamos el rol viejo para la auditoría
+        $user = User::with('role')->findOrFail($id);
 
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'cedula' => ['required', 'string', 'max:20', Rule::unique('users')->ignore($user->id)],
-            'role' => 'required|exists:roles,name',
-            'is_active' => 'boolean' 
+            'name'      => 'required|string|max:255',
+            'email'     => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'cedula'    => ['required', 'string', 'max:20', Rule::unique('users')->ignore($user->id)],
+            'role'      => 'required|exists:roles,name',
+            'is_active' => 'boolean'
         ]);
 
-        // Buscamos el nuevo rol por nombre para obtener su ID
-        $roleModel = Role::where('name', $request->role)->first();
+        $roleModel   = Role::where('name', $request->role)->first();
+        $changes     = [];
+        $emailChanged = $request->email !== $user->email;
 
-        // --- PREPARAR DATOS PARA AUDITORÍA DE CAMBIOS ---
-        $changes = [];
         if ($user->name !== $request->name) {
             $changes['old_name'] = $user->name;
             $changes['new_name'] = $request->name;
         }
-        if ($user->email !== $request->email) {
+        if ($emailChanged) {
             $changes['old_email'] = $user->email;
             $changes['new_email'] = $request->email;
         }
@@ -107,52 +102,38 @@ class UserController extends Controller
             $changes['new_status'] = $request->is_active ? 'Activo' : 'Inactivo';
         }
 
-        // Verificamos si cambió el correo
-        $emailChanged = $request->email !== $user->email;
-
-        // Asignación de datos
-        $user->name = $request->name;
-        $user->cedula = $request->cedula;
-        $user->role_id = $roleModel->id;   
-        $user->is_active = $request->is_active;
-
-        // Protección al Super Admin (ID 1)
         if ($user->id === 1 && $request->is_active == false) {
-             return response()->json(['message' => 'No puedes desactivar al Super Admin.'], 403);
+            return response()->json(['message' => 'No puedes desactivar al Super Admin.'], 403);
         }
 
-        // Lógica de Re-verificación de correo
+        $user->name      = $request->name;
+        $user->cedula    = $request->cedula;
+        $user->role_id   = $roleModel->id;
+        $user->is_active = $request->is_active;
+
         if ($emailChanged) {
-            $user->email = $request->email;
-            $user->email_verified_at = null; 
+            $user->email              = $request->email;
+            $user->email_verified_at  = null;
         }
 
         $user->save();
 
         $message = 'Usuario actualizado correctamente.';
-        
+
         if ($emailChanged) {
-            $token = Password::createToken($user);
+            $token   = Password::createToken($user);
             $user->sendPasswordResetNotification($token);
             $message = 'Usuario actualizado. Al cambiar el correo, pasó a estado PENDIENTE hasta verificación.';
         }
 
-        // --- 🔒 AUDITORÍA: ACTUALIZACIÓN DE USUARIO ---
-        // Solo guardamos el log si realmente cambiaron algún dato
         if (!empty($changes)) {
             $actionTitle = isset($changes['old_role']) ? 'Cambiar Rol' : 'Actualizar Usuario';
-            
-            $this->auditAction(
-                $actionTitle, 
-                "Actualizó perfil del usuario: {$user->name}",
-                $request,
-                $changes // Pasamos el arreglo de cambios directo al JSON
-            );
+            $this->auditAction($actionTitle, "Actualizó perfil del usuario: {$user->name}", $request, $changes);
         }
 
         return response()->json([
             'message' => $message,
-            'user' => $user->load('role') 
+            'user'    => $user->load('role')
         ]);
     }
 
@@ -160,28 +141,25 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
-        // 1. Protección Super Admin
         if ($user->id === 1) {
             return response()->json([
                 'message' => '¡Acción Denegada! No puedes eliminar al Super Administrador principal.'
             ], 403);
         }
 
-        // 2. Protección Auto-eliminación
         if ($request->user()->id === $user->id) {
-             return response()->json([
+            return response()->json([
                 'message' => 'No puedes eliminar tu propia cuenta mientras estás en sesión.'
             ], 400);
         }
 
         $deletedName = $user->name;
         $deletedRole = $user->role->name ?? 'Sin Rol';
-        
+
         $user->delete();
 
-        // --- 🔒 AUDITORÍA: ELIMINACIÓN DE USUARIO ---
         $this->auditAction(
-            'Eliminar Usuario', 
+            'Eliminar Usuario',
             "Eliminó permanentemente al usuario: {$deletedName} ({$deletedRole})",
             $request,
             ['deleted_user' => $deletedName]
@@ -190,20 +168,43 @@ class UserController extends Controller
         return response()->json(['message' => 'Usuario eliminado correctamente.']);
     }
 
-    // --- HELPER PRIVADO DE AUDITORÍA ---
+    // --- GENERADOR DE CONTRASEÑA TEMPORAL SEGURA Y LEGIBLE ---
+    private function generateTempPassword(): string
+    {
+        $mayusculas = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // sin I y O para evitar confusión
+        $minusculas = 'abcdefghjkmnpqrstuvwxyz';  // sin i, l, o
+        $numeros    = '23456789';                  // sin 0 y 1 para evitar confusión
+        $simbolos   = '@#$%&*!';
+
+        $password  = '';
+        $password .= $mayusculas[random_int(0, strlen($mayusculas) - 1)];
+        $password .= $mayusculas[random_int(0, strlen($mayusculas) - 1)];
+        $password .= $mayusculas[random_int(0, strlen($mayusculas) - 1)];
+        $password .= $numeros[random_int(0, strlen($numeros) - 1)];
+        $password .= $numeros[random_int(0, strlen($numeros) - 1)];
+        $password .= $numeros[random_int(0, strlen($numeros) - 1)];
+        $password .= $minusculas[random_int(0, strlen($minusculas) - 1)];
+        $password .= $minusculas[random_int(0, strlen($minusculas) - 1)];
+        $password .= $minusculas[random_int(0, strlen($minusculas) - 1)];
+        $password .= $simbolos[random_int(0, strlen($simbolos) - 1)];
+        $password .= $simbolos[random_int(0, strlen($simbolos) - 1)];
+
+        // Mezclar para que no sea predecible el orden
+        return str_shuffle($password);
+    }
+
     private function auditAction($action, $details, $request, $metadata = [])
     {
         try {
             AuditLog::create([
-                'user_id' => Auth::id(), // Registra quién hizo la acción
-                'action' => $action,
-                'details' => $details,
-                'metadata' => json_encode($metadata),
+                'user_id'    => Auth::id(),
+                'action'     => $action,
+                'details'    => $details,
+                'metadata'   => json_encode($metadata),
                 'ip_address' => $request->ip()
             ]);
-        } catch (\Exception $e) { 
-            // Si falla la auditoría, no se rompe el proceso de guardado de usuario
-            report($e); 
+        } catch (\Exception $e) {
+            report($e);
         }
     }
 }

@@ -35,11 +35,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/indexing/progress', [App\Http\Controllers\IndexingController::class, 'getProgress']);
 
     // Busqueda de grabaciones
-    Route::get('/search/folders', [SearchController::class, 'getFolders']); 
-    Route::get('/search/results', [SearchController::class, 'search']); 
+    Route::get('/search/folders', [SearchController::class, 'getFolders']);
+    Route::get('/search/results', [SearchController::class, 'search']);
     Route::get('/search/download/{id}', [SearchController::class, 'downloadItem']);
     Route::post('/search/download-zip', [SearchController::class, 'downloadZip']);
-    Route::post('/search/move', [SearchController::class, 'moveRecordings']); 
+    Route::post('/search/move', [SearchController::class, 'moveRecordings']);
 
     // Gestor de carpetas
     Route::get('/folder-manager/items', [FolderManagerController::class, 'getItems']);
@@ -67,7 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
-    
+
     // Roles
     Route::get('/roles', [RoleController::class, 'index']);
     Route::post('/roles', [RoleController::class, 'store']);
@@ -90,4 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // 3. Preferencias Globales
     Route::get('/config/settings', [ConfigurationController::class, 'getSettings']);
     Route::post('/config/settings', [ConfigurationController::class, 'saveSettings']);
+
+    // Cambio de contraseña obligatorio
+    Route::post('/auth/change-password', [App\Http\Controllers\AuthController::class, 'changePassword']);
 });

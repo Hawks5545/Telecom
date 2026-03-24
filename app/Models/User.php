@@ -16,10 +16,11 @@ class User extends Authenticatable
         'name',
         'email',
         'cedula',
-        'role_id',    
+        'role_id',
         'password',
-        'is_active', 
+        'is_active',
         'email_verified_at',
+	'must_change_password',
     ];
 
     protected $hidden = [
@@ -30,6 +31,7 @@ class User extends Authenticatable
     protected $casts = [
         'password' => 'hashed',
         'email_verified_at' => 'datetime',
+	'must_change_password' => 'boolean',
     ];
 
     public function role()
@@ -41,7 +43,7 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Role::class, 'role_id');
     }
-    
+
     public function sendPasswordResetNotification($token)
     {
         $this->notify(new \App\Notifications\CustomResetPasswordNotification($token));
