@@ -17,10 +17,11 @@ class DashboardController extends Controller
     public function getStats(Request $request)
     {
         $allowedRanges = ['day', 'week', 'month'];
-        $range = in_array($request->input('range'), $allowedRanges) ? $request->input('range') : 'month';
+        $range = in_array($request->input('range'), $allowedRanges)
+            ? $request->input('range') : 'month';
 
         try {
-            // --- 1. ACTIVIDAD RECIENTE (En Vivo - Milisegundos) ---
+            // --- 1. ACTIVIDAD RECIENTE (En Vivo) ---
             $recentActivity = AuditLog::with('user:id,name')
                 ->latest('id')
                 ->take(7)
@@ -35,12 +36,12 @@ class DashboardController extends Controller
                     ];
                 });
 
-            // --- 2. KPIs GLOBALES (Caché: 5 minutos) ---
-            $kpiCacheKey = 'dash_kpis_v14'; // ← actualizado
-            $kpis = Cache::remember($kpiCacheKey, 300, function () { // ← 300s = 5 min
-                $totalFiles    = Recording::count();
-                $totalSize     = Recording::sum('size');
-                $activeUsers   = User::where('is_active', true)->count();
+            // --- 2. KPIs (Caché: 30 minutos) ---
+            $kpis = Cache::remember('dash_kpis_v14', 1800, function () {
+                $totalFiles  = Recording::count();
+                $totalSize   = Recording::sum('size');
+                $activeUsers = User::where('is_active', true)->count();
+
                 $downloadsToday = AuditLog::whereDate('created_at', Carbon::today())
                     ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
                     ->count();
@@ -48,22 +49,20 @@ class DashboardController extends Controller
                 $importLocationsIds = StorageLocation::where('name', 'like', '%Importaci%')->pluck('id');
                 $importFilesCount   = Recording::whereIn('storage_location_id', $importLocationsIds)->count();
                 $nullFilesCount     = Recording::whereNull('storage_location_id')->count();
-                $totalInbox         = $importFilesCount + $nullFilesCount;
 
                 return [
                     'files'           => (int) $totalFiles,
                     'size'            => $this->formatBytes($totalSize),
                     'users'           => (int) $activeUsers,
                     'downloads_today' => (int) $downloadsToday,
-                    'import_files'    => (int) $totalInbox
+                    'import_files'    => (int) ($importFilesCount + $nullFilesCount)
                 ];
             });
 
-            // --- 3. GRÁFICOS PESADOS (Caché: 1 hora) ---
-            $chartsCacheKey  = 'dash_charts_v13_' . $range;
-            $chartsCacheTime = ($range === 'day') ? 900 : 3600;
+            // --- 3. GRÁFICAS (Caché: 6 horas) ---
+            $chartsCacheTime = ($range === 'day') ? 1800 : 21600;
 
-            $charts = Cache::remember($chartsCacheKey, $chartsCacheTime, function () use ($range) {
+            $charts = Cache::remember('dash_charts_v13_' . $range, $chartsCacheTime, function () use ($range) {
 
                 $startDate = match ($range) {
                     'day'   => Carbon::now()->startOfDay(),
@@ -73,7 +72,8 @@ class DashboardController extends Controller
 
                 // --- A. DEMANDA (Barras) ---
                 $demandStats   = [];
-                $motherFolders = StorageLocation::where('name', 'not like', '%Importaci%')->pluck('name')->toArray();
+                $motherFolders = StorageLocation::where('name', 'not like', '%Importaci%')
+                    ->pluck('name')->toArray();
 
                 AuditLog::select('action', 'details', 'metadata')
                     ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
@@ -82,7 +82,10 @@ class DashboardController extends Controller
                         foreach ($logs as $log) {
                             $found = false;
                             if (!empty($log->metadata)) {
-                                $meta = is_string($log->metadata) ? json_decode($log->metadata, true) : $log->metadata;
+                                $meta = is_string($log->metadata)
+                                    ? json_decode($log->metadata, true)
+                                    : $log->metadata;
+
                                 if (is_array($meta)) {
                                     if (isset($meta['campaigns_breakdown']) || isset($meta['campaigns'])) {
                                         $breakdown = $meta['campaigns_breakdown'] ?? $meta['campaigns'];
@@ -117,9 +120,8 @@ class DashboardController extends Controller
                                     }
                                 }
                                 if (!$found) {
-                                    $otherName = 'Otros / Sin clasificar';
-                                    if (!isset($demandStats[$otherName])) $demandStats[$otherName] = 0;
-                                    $demandStats[$otherName]++;
+                                    if (!isset($demandStats['Otros / Sin clasificar'])) $demandStats['Otros / Sin clasificar'] = 0;
+                                    $demandStats['Otros / Sin clasificar']++;
                                 }
                             }
                         }
@@ -158,6 +160,36 @@ class DashboardController extends Controller
         } catch (\Exception $e) {
             Log::error("Error en Dashboard: " . $e->getMessage());
             return response()->json(['error' => 'Error interno procesando las estadísticas'], 500);
+        }
+    }
+
+    // --- PRE-CALENTAR CACHÉ (llamado desde otros controladores) ---
+    public static function warmCache(): void
+    {
+        try {
+            // KPIs
+            Cache::forget('dash_kpis_v14');
+            $totalFiles  = Recording::count();
+            $totalSize   = Recording::sum('size');
+            $activeUsers = User::where('is_active', true)->count();
+            $downloadsToday = AuditLog::whereDate('created_at', Carbon::today())
+                ->whereIn('action', ['Descarga', 'Descarga ZIP', 'Descarga ZIP Folder'])
+                ->count();
+            $importLocationsIds = StorageLocation::where('name', 'like', '%Importaci%')->pluck('id');
+            $importFilesCount   = Recording::whereIn('storage_location_id', $importLocationsIds)->count();
+            $nullFilesCount     = Recording::whereNull('storage_location_id')->count();
+
+            Cache::put('dash_kpis_v14', [
+                'files'           => (int) $totalFiles,
+                'size'            => (new self)->formatBytes($totalSize),
+                'users'           => (int) $activeUsers,
+                'downloads_today' => (int) $downloadsToday,
+                'import_files'    => (int) ($importFilesCount + $nullFilesCount)
+            ], 1800);
+
+            Log::info("Dashboard caché pre-calentado correctamente.");
+        } catch (\Exception $e) {
+            Log::error("Error pre-calentando caché: " . $e->getMessage());
         }
     }
 

@@ -136,6 +136,8 @@ class FolderManagerController extends Controller
                 Cache::forget("dash_charts_v13_{$range}");
             }
 
+	   \App\Http\Controllers\DashboardController::warmCache();
+
             return response()->json([
                 'message' => 'Carpeta creada exitosamente.',
                 'folder'  => $folder
@@ -173,6 +175,8 @@ class FolderManagerController extends Controller
             Cache::forget("dash_charts_v13_{$range}");
         }
 
+       \App\Http\Controllers\DashboardController::warmCache();
+
         return response()->json(['message' => 'Carpeta eliminada correctamente.']);
     }
 
@@ -199,6 +203,8 @@ class FolderManagerController extends Controller
         foreach (['day', 'week', 'month'] as $range) {
             Cache::forget("dash_charts_v13_{$range}");
         }
+
+	\App\Http\Controllers\DashboardController::warmCache();
 
         return response()->json(['message' => 'Carpeta actualizada.', 'folder' => $folder]);
     }
@@ -236,10 +242,17 @@ class FolderManagerController extends Controller
         try {
             $location = StorageLocation::findOrFail($id);
 
+            $totalCount = Recording::where('storage_location_id', $id)->count();
+            if ($totalCount > 5000) {
+                 return response()->json([
+                     'message' => "Esta carpeta contiene {$totalCount} grabaciones y supera el límite de 5,000. Use el módulo de Búsqueda para filtrar las grabaciones que necesita."
+                  ], 422);
+            }
+
             $recordings = Recording::where('storage_location_id', $id)
-                ->select('id', 'filename', 'full_path', 'folder_path')
-                ->limit(5000)
-                ->get();
+           	 ->select('id', 'filename', 'full_path', 'folder_path')
+            	->limit(5000)
+           	 ->get();
 
             if ($recordings->isEmpty()) {
                 return response()->json(['message' => 'La carpeta está vacía.'], 400);

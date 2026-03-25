@@ -27,7 +27,7 @@ class SearchController extends Controller
         return response()->json($folders);
     }
 
-    // --- 2. BÚSQUEDA ---
+    // --- 2. BÚSQUEDA OPTIMIZADA CON CONTEO EN CACHÉ ---
     public function search(Request $request)
     {
         if ($request->filled('cedula') && strlen($request->cedula) < 4) {
@@ -35,16 +35,27 @@ class SearchController extends Controller
         }
 
         $safeFilters = $request->only([
-            'cedula', 'telefono', 'filename', 'dateFrom', 'dateTo', 'folder_id', 'campana'
+            'cedula', 'telefono', 'filename', 'dateFrom', 'dateTo', 'folderId', 'campana'
         ]);
+
+        // ✅ CONTEO CON CACHÉ — no hace COUNT en cada petición de paginación
+        $cacheKey   = 'search_count_' . md5(json_encode($safeFilters));
+        $totalCount = Cache::remember($cacheKey, 300, function () use ($safeFilters) {
+            return Recording::filter($safeFilters)->count();
+        });
 
         $results = Recording::with('storageLocation:id,name')
             ->filter($safeFilters)
             ->orderBy('fecha_grabacion', 'desc')
-            ->simplePaginate(15)
+            ->paginate(15)
             ->withQueryString();
 
-        return response()->json($results);
+        // Inyectamos el total cacheado
+        $resultsArray              = $results->toArray();
+        $resultsArray['total']     = $totalCount;
+        $resultsArray['last_page'] = (int) ceil($totalCount / 15);
+
+        return response()->json($resultsArray);
     }
 
     // --- 3. MOVER GRABACIONES ---
@@ -75,7 +86,7 @@ class SearchController extends Controller
                 ]
             );
 
-            // Borrar solo las claves necesarias — sin afectar jobs de indexación
+            // Borrar solo las claves necesarias
             Cache::forget('active_folders_list');
             Cache::forget('dash_kpis_v14');
             foreach (['virtual', 'physical'] as $type) {
@@ -84,6 +95,8 @@ class SearchController extends Controller
             foreach (['day', 'week', 'month'] as $range) {
                 Cache::forget("dash_charts_v13_{$range}");
             }
+
+	   \App\Http\Controllers\DashboardController::warmCache();
 
             return response()->json([
                 'message'     => "Proceso exitoso. Se movieron $updatedCount grabaciones a {$targetLocation->name}.",
