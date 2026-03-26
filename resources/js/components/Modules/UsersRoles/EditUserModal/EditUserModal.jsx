@@ -63,7 +63,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     }, [user]);
 
     const fetchRoles = async () => {
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         try {
             const response = await fetch('/api/roles', {
                  headers: { 'Authorization': `Bearer ${token}` }
@@ -85,7 +85,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     const handleSave = async () => {
         setIsSubmitting(true);
         setError('');
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
 
         // --- UNIR NOMBRE Y APELLIDO PARA ENVIAR AL BACKEND ---
         const fullNameCombined = `${formData.nombre} ${formData.apellido}`.trim();

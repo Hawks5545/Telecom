@@ -54,7 +54,7 @@ const SearchRecordings = () => {
 
     const fetchFolders = async () => {
         try {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             const res   = await fetch('/api/search/folders', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -64,7 +64,7 @@ const SearchRecordings = () => {
 
     const fetchResults = async (page = 1) => {
         setIsLoading(true);
-        const token  = localStorage.getItem('auth_token');
+        const token  = sessionStorage.getItem('auth_token');
         const params = new URLSearchParams({ page, ...filters });
 
         try {
@@ -131,7 +131,7 @@ const SearchRecordings = () => {
     };
 
     const handleSingleDownload = async (item) => {
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         try {
             showAlert('loading', 'Conectando...', `Preparando descarga de ${formatBytes(item.size)}...`);
 
@@ -193,7 +193,7 @@ const SearchRecordings = () => {
     };
 
     const executeZipDownload = async () => {
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         try {
             showAlert('loading', 'Comprimiendo...',
                 `Procesando ${totalSelectedSize} en el servidor. Esto puede tardar unos segundos...`);

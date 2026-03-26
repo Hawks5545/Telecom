@@ -29,7 +29,7 @@ const Auditoria = () => {
 
         const fetchUsers = async () => {
             try {
-                const token = localStorage.getItem('auth_token');
+                const token = sessionStorage.getItem('auth_token');
                 const res = await fetch('/api/audit/users', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -42,7 +42,7 @@ const Auditoria = () => {
     // OPTIMIZACIÓN: Acepta filtros sobreescritos para evitar el lag del estado en el botón "Limpiar"
     const fetchLogs = useCallback(async (page = 1, overrideFilters = null) => {
         setIsLoading(true);
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         const activeFilters = overrideFilters || filters;
         
         const params = new URLSearchParams({ page, ...activeFilters });

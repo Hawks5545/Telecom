@@ -31,7 +31,7 @@ const Reportes = () => {
 
         const fetchUsers = async () => {
             try {
-                const token = localStorage.getItem('auth_token');
+                const token = sessionStorage.getItem('auth_token');
                 const res = await fetch('/api/reports/users', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -44,7 +44,7 @@ const Reportes = () => {
 
     const fetchReportData = useCallback(async () => {
         setIsLoading(true);
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         const params = new URLSearchParams(filters);
 
         try {
@@ -85,7 +85,7 @@ const Reportes = () => {
     };
 
     const executePdfDownload = async () => {
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         const params = new URLSearchParams(filters);
         
         showAlert('loading', 'Generando PDF', 'Por favor espera...');

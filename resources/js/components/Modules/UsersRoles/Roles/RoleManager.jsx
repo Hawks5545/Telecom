@@ -30,7 +30,7 @@ const RoleManager = () => {
     const fetchRoles = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             const response = await fetch('/api/roles', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -82,7 +82,7 @@ const RoleManager = () => {
     // --- FUNCIÓN REAL ELIMINAR (BACKEND) ---
     const executeDelete = async (roleId) => {
         try {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             const response = await fetch(`/api/roles/${roleId}`, {
                 method: 'DELETE',
                 headers: { 

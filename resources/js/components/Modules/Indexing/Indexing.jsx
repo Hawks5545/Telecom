@@ -2,39 +2,64 @@ import React, { useState, useEffect, useRef } from 'react';
 import styles from './Indexing.module.css';
 import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
+// ← CLAVES de sessionStorage para persistir estado
+const SK_JOB     = 'indexing_job';
+const SK_LOGS    = 'indexing_logs';
+const SK_STATS   = 'indexing_stats';
+const SK_PATH    = 'indexing_path';
+
 const Indexing = () => {
-    const [stats, setStats] = useState({
-        detectadas: 0,
-        indexadas: 0,
-        peso: '---',
-        ultima: '---'
+
+    // ← Restaurar estado guardado si existe
+    const savedJob   = JSON.parse(sessionStorage.getItem(SK_JOB)   || 'null');
+    const savedStats = JSON.parse(sessionStorage.getItem(SK_STATS) || 'null');
+    const savedLogs  = JSON.parse(sessionStorage.getItem(SK_LOGS)  || 'null');
+    const savedPath  = sessionStorage.getItem(SK_PATH) || '';
+
+    const [stats, setStats] = useState(savedStats || {
+        detectadas: 0, indexadas: 0, peso: '---', ultima: '---'
     });
-    const [folderPath, setFolderPath]   = useState('');
-    const [isScanning, setIsScanning]   = useState(false);
-    const [isIndexing, setIsIndexing]   = useState(false);
-    const [progressData, setProgressData] = useState({ percentage: 0, status: 'idle' });
-    const [logs, setLogs]   = useState([{ type: 'info', msg: 'Sistema listo. Ingrese una ruta y presione Iniciar.' }]);
-    const [options, setOptions] = useState({ skipDuplicates: true });
+
+    const [folderPath, setFolderPath]     = useState(savedPath);
+    const [isScanning, setIsScanning]     = useState(savedJob?.type === 'scan');
+    const [isIndexing, setIsIndexing]     = useState(savedJob?.type === 'index');
+    const [progressData, setProgressData] = useState({ percentage: savedJob?.percentage || 0, status: savedJob ? 'processing' : 'idle' });
+    const [logs, setLogs]                 = useState(savedLogs || [{ type: 'info', msg: 'Sistema listo. Ingrese una ruta y presione Iniciar.' }]);
+    const [options, setOptions]           = useState({ skipDuplicates: true });
 
     const consoleContainerRef = useRef(null);
     const pollRetries         = useRef(0);
-    const scanStartTime       = useRef(null); // ← NUEVO: para polling dinámico
+    const scanStartTime       = useRef(savedJob?.startTime || null);
     const MAX_RETRIES         = 5;
 
     const [alertConfig, setAlertConfig] = useState({
         isOpen: false, type: 'info', title: '', message: '', onConfirm: null
     });
 
-    const showAlert = (type, title, message, onConfirm = null) =>
+    const showAlert  = (type, title, message, onConfirm = null) =>
         setAlertConfig({ isOpen: true, type, title, message, onConfirm });
-
     const closeAlert = () =>
         setAlertConfig(prev => ({ ...prev, isOpen: false }));
 
     const addLog = (type, msg) => {
         const time = new Date().toLocaleTimeString();
-        setLogs(prev => [...prev, { type, msg, time }]);
+        setLogs(prev => {
+            const newLogs = [...prev, { type, msg, time }];
+            // ← Persistir logs en sessionStorage
+            sessionStorage.setItem(SK_LOGS, JSON.stringify(newLogs));
+            return newLogs;
+        });
     };
+
+    // ← Persistir stats cuando cambian
+    useEffect(() => {
+        sessionStorage.setItem(SK_STATS, JSON.stringify(stats));
+    }, [stats]);
+
+    // ← Persistir ruta cuando cambia
+    useEffect(() => {
+        sessionStorage.setItem(SK_PATH, folderPath);
+    }, [folderPath]);
 
     useEffect(() => {
         if (consoleContainerRef.current) {
@@ -42,10 +67,33 @@ const Indexing = () => {
         }
     }, [logs, progressData]);
 
+    // ← Si había un job activo al montar, retomar el polling
+    useEffect(() => {
+        if (savedJob?.jobId) {
+            addLog('info', `🔄 Retomando proceso en curso (Job: ${savedJob.jobId})...`);
+            scanStartTime.current = savedJob.startTime || Date.now();
+            pollProgress(savedJob.jobId, savedJob.type === 'scan');
+        }
+    }, []);
+
+    // --- GUARDAR JOB ACTIVO ---
+    const saveJob = (jobId, type, percentage = 0) => {
+        sessionStorage.setItem(SK_JOB, JSON.stringify({
+            jobId,
+            type,
+            percentage,
+            startTime: scanStartTime.current
+        }));
+    };
+
+    const clearJob = () => {
+        sessionStorage.removeItem(SK_JOB);
+    };
+
     // --- RADAR DE PROGRESO UNIVERSAL ---
     const pollProgress = async (jobId, isScanType = false) => {
         try {
-            const token    = localStorage.getItem('auth_token');
+            const token    = sessionStorage.getItem('auth_token');
             const response = await fetch(`/api/indexing/progress?job_id=${jobId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -56,25 +104,23 @@ const Indexing = () => {
             if (data.status === 'processing' || data.status === 'starting' || data.status === 'scanning') {
                 if (!isScanType) {
                     setProgressData({ percentage: data.percentage, status: 'processing' });
+                    // ← Actualizar porcentaje en sessionStorage
+                    saveJob(jobId, 'index', data.percentage);
                     if (data.procesados && data.total) {
                         addLog('info', `Procesados: ${data.procesados.toLocaleString()} / ${data.total.toLocaleString()} archivos (${data.percentage}%)`);
                     }
                 }
 
-                // POLLING DINÁMICO:
-                // - Primeros 30s  → cada 2s  (rutas pequeñas como 32MB)
-                // - Entre 30s-2min → cada 5s  (rutas medianas)
-                // - Más de 2min   → cada 10s (rutas grandes como 4TB)
                 const elapsed = Date.now() - scanStartTime.current;
-                const delay = elapsed < 30000 ? 2000 : elapsed < 120000 ? 5000 : 10000;
-
+                const delay   = elapsed < 30000 ? 2000 : elapsed < 120000 ? 5000 : 10000;
                 setTimeout(() => pollProgress(jobId, isScanType), delay);
             }
             else if (data.status === 'completed') {
+                clearJob(); // ← Limpiar job al completar
                 if (isScanType) {
                     setStats(prev => ({
                         ...prev,
-                        peso: `${data.size_mb} MB`,
+                        peso:       `${data.size_mb} MB`,
                         detectadas: data.files_count
                     }));
                     addLog('success', `✅ Escaneo finalizado: ${data.files_count?.toLocaleString()} archivos — ${data.size_mb} MB`);
@@ -96,6 +142,7 @@ const Indexing = () => {
                 }
             }
             else if (data.status === 'error') {
+                clearJob();
                 addLog('error', `❌ Error en el proceso: ${data.message || 'Error desconocido'}`);
                 showAlert('error', 'Error en el proceso',
                     data.message || 'Ocurrió un error inesperado. Revisa los logs del servidor.');
@@ -103,6 +150,7 @@ const Indexing = () => {
                 setIsIndexing(false);
             }
             else if (data.status === 'not_found') {
+                clearJob();
                 addLog('error', '⚠️ Se perdió el rastro del proceso. La caché puede haber expirado.');
                 showAlert('error', 'Proceso perdido',
                     'No se encontró el estado del proceso. Intenta iniciar de nuevo.');
@@ -118,6 +166,7 @@ const Indexing = () => {
                 const delay = 3000 * Math.pow(2, pollRetries.current - 1);
                 setTimeout(() => pollProgress(jobId, isScanType), delay);
             } else {
+                clearJob();
                 addLog('error', '❌ Se perdió la conexión con el servidor después de varios intentos.');
                 showAlert('error', 'Sin conexión',
                     'No se pudo contactar al servidor. Verifica tu red e intenta de nuevo.');
@@ -132,23 +181,21 @@ const Indexing = () => {
         if (!folderPath) return showAlert('error', 'Error', 'La ruta no puede estar vacía.');
 
         setIsScanning(true);
-        pollRetries.current  = 0;
-        scanStartTime.current = Date.now(); // ← NUEVO: marcar inicio
+        pollRetries.current   = 0;
+        scanStartTime.current = Date.now();
         addLog('info', `🔍 Solicitando escaneo de: ${folderPath}...`);
 
         try {
-            const token    = localStorage.getItem('auth_token');
+            const token    = sessionStorage.getItem('auth_token');
             const response = await fetch('/api/indexing/scan', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ path: folderPath })
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body:    JSON.stringify({ path: folderPath })
             });
             const data = await response.json();
 
             if (response.ok) {
+                saveJob(data.job_id, 'scan'); // ← Guardar job
                 addLog('info', 'Escaneo en marcha. Contando archivos en segundo plano...');
                 pollProgress(data.job_id, true);
             } else {
@@ -168,23 +215,21 @@ const Indexing = () => {
 
         setIsIndexing(true);
         setProgressData({ percentage: 0, status: 'starting' });
-        pollRetries.current  = 0;
-        scanStartTime.current = Date.now(); // ← NUEVO: marcar inicio
+        pollRetries.current   = 0;
+        scanStartTime.current = Date.now();
         addLog('info', '🚀 Iniciando motor de indexación asíncrono...');
 
         try {
-            const token    = localStorage.getItem('auth_token');
+            const token    = sessionStorage.getItem('auth_token');
             const response = await fetch('/api/indexing/run', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ path: folderPath, options })
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body:    JSON.stringify({ path: folderPath, options })
             });
             const data = await response.json();
 
             if (response.ok) {
+                saveJob(data.job_id, 'index'); // ← Guardar job
                 addLog('info', 'Indexación en segundo plano iniciada. Conectando radar...');
                 pollProgress(data.job_id, false);
             } else {
@@ -234,7 +279,9 @@ const Indexing = () => {
                             <div className={styles.statCard}>
                                 <i className={`bi bi-database-check ${styles.statIcon}`}></i>
                                 <div className={styles.statTitle}>Total en BD</div>
-                                <div className={styles.statValue}>{stats.indexadas.toLocaleString?.() ?? stats.indexadas}</div>
+                                <div className={styles.statValue}>
+                                    {stats.indexadas.toLocaleString?.() ?? stats.indexadas}
+                                </div>
                             </div>
                         </div>
                         <div className="col-6 col-md-3">
@@ -252,7 +299,7 @@ const Indexing = () => {
                             <div className={styles.statCard}>
                                 <i className={`bi bi-calendar-check ${styles.statIcon}`}></i>
                                 <div className={styles.statTitle}>Última Indexación</div>
-                                <div className={styles.statValue} style={{ fontSize: '1.1rem', marginTop: '5px' }}>
+                                <div className={styles.statValue} style={{fontSize: '1.1rem', marginTop: '5px'}}>
                                     {stats.ultima}
                                 </div>
                             </div>
@@ -313,10 +360,10 @@ const Indexing = () => {
                                         <span className="small text-muted fw-bold">Indexando...</span>
                                         <span className="small text-primary fw-bold">{progressData.percentage}%</span>
                                     </div>
-                                    <div className="progress" style={{ height: '15px' }}>
+                                    <div className="progress" style={{height: '15px'}}>
                                         <div
                                             className="progress-bar progress-bar-striped progress-bar-animated"
-                                            style={{ width: `${progressData.percentage}%` }}
+                                            style={{width: `${progressData.percentage}%`}}
                                         ></div>
                                     </div>
                                 </div>
@@ -348,7 +395,7 @@ const Indexing = () => {
                                         <span className="text-muted small me-2">[{log.time}]</span>
                                         <span className={
                                             log.type === 'success' ? styles.logSuccess
-                                            : log.type === 'error' ? styles.logError
+                                            : log.type === 'error'   ? styles.logError
                                             : styles.logInfo
                                         }>
                                             {log.msg}

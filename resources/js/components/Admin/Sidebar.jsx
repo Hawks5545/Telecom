@@ -4,7 +4,7 @@ import styles from './Sidebar.module.css';
 const Sidebar = ({ onLogout, activeModule, onNavigate }) => {
 
     // 1. LEER DATOS Y PERMISOS DEL USUARIO
-    const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
+    const userData = JSON.parse(sessionStorage.getItem('user_data') || '{}');
     const {role} = userData; 
 
     const userPerms = userData.permissions || [];

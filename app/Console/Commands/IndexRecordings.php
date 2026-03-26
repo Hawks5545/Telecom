@@ -24,13 +24,13 @@ class IndexRecordings extends Command
             return Command::FAILURE;
         }
 
-        // 1. ESTADO INICIAL — TTL 24 horas
+        // 1. ESTADO INICIAL
         Cache::put("progress_{$jobId}", [
             'status'     => 'starting',
             'percentage' => 0,
         ], 86400);
 
-        // 2. CONTEO CON TIMEOUT para evitar bloqueos eternos
+        // 2. CONTEO DE ARCHIVOS
         $this->info("Contando archivos con motor nativo de Linux...");
         $countCmd   = "timeout 3600 find " . escapeshellarg($rootPath)
                     . " -type f -iregex '.*\.\(mp3\|wav\|ogg\|aac\|wma\)$' 2>/dev/null | wc -l";
@@ -79,20 +79,21 @@ class IndexRecordings extends Command
 
             $rootLocationId = $location->id;
 
-            // 4. CARGA GLOBAL DE DUPLICADOS EN CHUNKS DE 50,000
-            $this->info("Cargando índice global de duplicados en chunks...");
+            // 4. ✅ CARGA OPTIMIZADA — Solo paths de ESA carpeta, no de toda la BD
+            $this->info("Cargando índice de duplicados solo para esta carpeta...");
             $existingPaths = [];
 
             DB::table('recordings')
                 ->select('full_path')
+                ->where('full_path', 'like', $rootPath . '%')
                 ->orderBy('id')
-                ->chunk(50000, function ($records) use (&$existingPaths) {
+                ->chunk(10000, function ($records) use (&$existingPaths) {
                     foreach ($records as $record) {
                         $existingPaths[$record->full_path] = true;
                     }
                 });
 
-            $this->info("Índice cargado: " . count($existingPaths) . " paths existentes.");
+            $this->info("Índice cargado: " . count($existingPaths) . " paths existentes en esta carpeta.");
 
             // 5. STREAMING PURO CON BATCH INSERT
             $findCmd = "timeout 7200 find " . escapeshellarg($rootPath)
@@ -151,7 +152,6 @@ class IndexRecordings extends Command
                 'omitidos'   => $omitidos,
             ], 86400);
 
-            // REGISTRO DE AUDITORÍA FINAL
             $this->logAudit(null, 'Indexación Completada',
                 "Ruta: {$rootPath} — Nuevos: " . number_format($nuevos, 0, ',', '.') .
                 " | Omitidos: " . number_format($omitidos, 0, ',', '.'));
@@ -171,7 +171,6 @@ class IndexRecordings extends Command
                 'message'    => $e->getMessage(),
             ], 86400);
 
-            // REGISTRO DE AUDITORÍA DE ERROR
             $this->logAudit(null, 'Indexación Completada',
                 "Ruta: {$rootPath} — Error: " . $e->getMessage() .
                 " | Procesados hasta el fallo: " . number_format($processed, 0, ',', '.'));

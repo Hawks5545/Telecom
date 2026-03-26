@@ -65,7 +65,7 @@ const BulkDownload = () => {
         formData.append('file', archivo);
 
         try {
-            const token    = localStorage.getItem('auth_token');
+            const token    = sessionStorage.getItem('auth_token');
             const response = await fetch('/api/bulk-download/preview', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
@@ -96,7 +96,7 @@ const BulkDownload = () => {
         async () => {
             setIsDownloading(true);
             try {
-                const token = localStorage.getItem('auth_token');
+                const token = sessionStorage.getItem('auth_token');
                 const ids   = resultados.lista_encontradas.map(r => r.id);
 
                 // PASO 1: Generar token temporal

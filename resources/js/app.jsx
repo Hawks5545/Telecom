@@ -25,7 +25,7 @@ import BulkDownload from './components/Modules/BulkDownload/BulkDownload';
 
 const LoginWrapper = () => {
     const navigate = useNavigate();
-    const token = localStorage.getItem('auth_token');
+    const token = sessionStorage.getItem('auth_token');
     if (token) {
         return <Navigate to="/dashboard" replace />;
     }
@@ -39,17 +39,17 @@ const LoginWrapper = () => {
 
 const MainApp = () => {
     const navigate = useNavigate();
-    const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('auth_token'));
+    const [isLoggedIn, setIsLoggedIn] = useState(!!sessionStorage.getItem('auth_token'));
     const [currentView, setCurrentView] = useState('dashboard'); 
     
     // 1. CARGAMOS LOS DATOS DEL USUARIO
     const [userData, setUserData] = useState(() => 
-        JSON.parse(localStorage.getItem('user_data') || '{}')
+        JSON.parse(sessionStorage.getItem('user_data') || '{}')
     );
 
     useEffect(() => {
         const checkAuth = () => {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             if (!token && isLoggedIn) {
                 setIsLoggedIn(false);
                 setUserData({});
@@ -67,7 +67,7 @@ const MainApp = () => {
     // 3. LOGOUT
     const handleLogout = async () => {
         try {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             if (token) {
                 await fetch('/api/logout', {
                     method: 'POST',
@@ -81,7 +81,7 @@ const MainApp = () => {
         } catch (error) {
             console.error("Error logout:", error);
         } finally {
-            localStorage.clear(); 
+            sessionStorage.clear(); 
             window.location.href = '/login';
         }
     };

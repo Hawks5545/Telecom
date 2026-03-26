@@ -21,7 +21,7 @@ const LoginForm = ({ onBack, onLogin }) => {
         setIsLoading(true);
 
         try {
-            localStorage.clear();
+            sessionStorage.clear();
 
             const response = await fetch('/api/login', {
                 method: 'POST',
@@ -39,15 +39,15 @@ const LoginForm = ({ onBack, onLogin }) => {
                 if (data.must_change_password) {
                     // Guardar token temporalmente para el cambio de contraseña
                     setAuthToken(data.token);
-                    localStorage.setItem('auth_token', data.token);
+                    sessionStorage.setItem('auth_token', data.token);
                     if (data.user) {
-                        localStorage.setItem('user_data', JSON.stringify(data.user));
+                        sessionStorage.setItem('user_data', JSON.stringify(data.user));
                     }
                     setShowChangePassword(true);
                 } else {
-                    localStorage.setItem('auth_token', data.token);
+                    sessionStorage.setItem('auth_token', data.token);
                     if (data.user) {
-                        localStorage.setItem('user_data', JSON.stringify(data.user));
+                        sessionStorage.setItem('user_data', JSON.stringify(data.user));
                     }
                     if (onLogin) onLogin();
                 }

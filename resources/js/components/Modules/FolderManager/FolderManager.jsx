@@ -59,7 +59,7 @@ const FolderManager = () => {
 
     const fetchItems = useCallback(async (page = 1) => {
         setIsLoading(true);
-        const token  = localStorage.getItem('auth_token');
+        const token  = sessionStorage.getItem('auth_token');
         const params = new URLSearchParams({
             page, parentId: currentFolderId,
             search: searchTerm, dateFrom, dateTo, viewType
@@ -109,7 +109,7 @@ const FolderManager = () => {
     }, [searchTerm, dateFrom, dateTo]);
 
     const fetchAllFolders = async () => {
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         try {
             const res = await fetch('/api/search/folders', {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -126,7 +126,7 @@ const FolderManager = () => {
         e.preventDefault();
         if (!newFolderName.trim()) return;
         setIsSaving(true);
-        const token  = localStorage.getItem('auth_token');
+        const token  = sessionStorage.getItem('auth_token');
         const url    = editingFolder ? `/api/folder-manager/${editingFolder.id}` : '/api/folder-manager/create';
         const method = editingFolder ? 'PUT' : 'POST';
 
@@ -155,7 +155,7 @@ const FolderManager = () => {
 
     const handleDeleteFolder = (folder) => {
         showAlert('delete', 'Eliminar Carpeta', `¿Estás seguro de eliminar "${folder.name}"?`, async () => {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             try {
                 const res  = await fetch(`/api/folder-manager/${folder.id}`, {
                     method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
@@ -176,7 +176,7 @@ const FolderManager = () => {
     const handleMoveRecordings = async () => {
         if (!targetFolderId) return;
         setIsMoving(true);
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         try {
             const res  = await fetch('/api/search/move', {
                 method:  'POST',
@@ -254,7 +254,7 @@ const FolderManager = () => {
     };
 
     const executeDownload = async (item) => {
-        const token    = localStorage.getItem('auth_token');
+        const token    = sessionStorage.getItem('auth_token');
         const isFolder = item.type === 'folder';
         const url      = isFolder
             ? `/api/folder-manager/download-folder/${item.id}?t=${new Date().getTime()}`

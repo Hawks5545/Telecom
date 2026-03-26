@@ -58,7 +58,7 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
         setIsSubmitting(true);
         setError('');
 
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
 
         try {
             const response = await fetch(`/api/roles/${role.id}`, {

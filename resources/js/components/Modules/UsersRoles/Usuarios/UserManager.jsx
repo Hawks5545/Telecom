@@ -36,7 +36,7 @@ const UserManager = () => {
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             const response = await fetch('/api/users', {
                 method: 'GET',
                 headers: {
@@ -159,7 +159,7 @@ const UserManager = () => {
     // --- FUNCIÓN REAL DE ELIMINAR ---
     const executeDelete = async (userId) => {
         try {
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             const response = await fetch(`/api/users/${userId}`, {
                 method: 'DELETE',
                 headers: {

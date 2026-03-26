@@ -41,7 +41,7 @@ const Dashboard = () => {
         const fetchData = async () => {
             setLoading(true);
             setError(null);
-            const token = localStorage.getItem('auth_token');
+            const token = sessionStorage.getItem('auth_token');
             try {
                 const res = await fetch(`/api/dashboard/stats?range=${timeRange}`, {
                     headers: { 'Authorization': `Bearer ${token}` }

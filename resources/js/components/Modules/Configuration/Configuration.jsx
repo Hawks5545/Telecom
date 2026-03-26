@@ -72,7 +72,7 @@ const Configuration = () => {
     const fetchLocations = async () => {
         setIsFetchingLocations(true); // Encendemos el Skeleton
         
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         const params = new URLSearchParams();
         if (locationSearch) params.append('search', locationSearch);
 
@@ -96,7 +96,7 @@ const Configuration = () => {
 
     // 2. Obtener Ajustes
     const fetchSettings = async () => {
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         try {
             const response = await fetch('/api/config/settings', {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -113,7 +113,7 @@ const Configuration = () => {
         if (!newLocation.path) return showAlert('error', 'Campo Requerido', 'Por favor ingresa la ruta del servidor.');
         
         setIsLoadingPath(true);
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         const endpoint = activeSection === 'inbox_routes' ? '/api/config/storage/inbox' : '/api/config/storage/campaigns';
 
         try {
@@ -144,7 +144,7 @@ const Configuration = () => {
     };
 
     const executeDeleteLocation = async (id) => {
-    const token = localStorage.getItem('auth_token');
+    const token = sessionStorage.getItem('auth_token');
     const endpoint = activeSection === 'inbox_routes' 
         ? `/api/config/storage/inbox/${id}` 
         : `/api/config/storage/campaigns/${id}`;
@@ -170,7 +170,7 @@ const Configuration = () => {
 
     const handleSaveSettings = async () => {
         setIsSavingSettings(true);
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         try {
             const response = await fetch('/api/config/settings', {
                 method: 'POST',

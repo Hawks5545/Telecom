@@ -7,8 +7,8 @@ import { Navigate, Outlet } from 'react-router-dom';
 const ProtectedRoute = ({ allowedRoles, children }) => {
     
     // 1. Verificar si está logueado
-    const token = localStorage.getItem('auth_token');
-    const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
+    const token = sessionStorage.getItem('auth_token');
+    const userData = JSON.parse(sessionStorage.getItem('user_data') || '{}');
     const userRole = userData.role;
 
     // SI NO TIENE TOKEN -> Lo manda al Login

@@ -20,6 +20,7 @@ const RoleModal = ({ isOpen, onClose, onSuccess }) => {
         "Búsqueda de Grabaciones",
         "Gestor de Carpetas",
         "Indexación",
+        "Descarga Masiva",
         "Auditorías",
         "Reportes"
     ];
@@ -44,7 +45,7 @@ const RoleModal = ({ isOpen, onClose, onSuccess }) => {
         setIsSubmitting(true);
         setError('');
 
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
 
         const payload = {
             ...formData,
