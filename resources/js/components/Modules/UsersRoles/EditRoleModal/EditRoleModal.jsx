@@ -23,6 +23,8 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
         "Búsqueda de Grabaciones",
         "Gestor de Carpetas",
         "Indexación",
+	"Descarga Masiva",
+        "Reproducir Audio",
         "Auditorías",
         "Reportes"
     ];

@@ -18,9 +18,10 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLink']);
 Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 Route::get('/bulk-download/stream/{token}', [App\Http\Controllers\BulkDownloadController::class, 'streamByToken']);
+Route::get('/search/stream/{id}', [SearchController::class, 'streamAudio']);
 
 // --- RUTAS PROTEGIDAS ---
-Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -33,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/indexing/scan', [IndexingController::class, 'scanFolder']);
     Route::post('/indexing/run', [IndexingController::class, 'runIndexing']);
     Route::get('/indexing/progress', [App\Http\Controllers\IndexingController::class, 'getProgress']);
+    Route::post('/indexing/cancel', [App\Http\Controllers\IndexingController::class, 'cancelProcess']);
 
     // Busqueda de grabaciones
     Route::get('/search/folders', [SearchController::class, 'getFolders']);

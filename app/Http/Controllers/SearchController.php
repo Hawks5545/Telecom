@@ -38,7 +38,6 @@ class SearchController extends Controller
             'cedula', 'telefono', 'filename', 'dateFrom', 'dateTo', 'folderId', 'campana'
         ]);
 
-        // ✅ CONTEO CON CACHÉ — no hace COUNT en cada petición de paginación
         $cacheKey   = 'search_count_' . md5(json_encode($safeFilters));
         $totalCount = Cache::remember($cacheKey, 300, function () use ($safeFilters) {
             return Recording::filter($safeFilters)->count();
@@ -50,7 +49,6 @@ class SearchController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Inyectamos el total cacheado
         $resultsArray              = $results->toArray();
         $resultsArray['total']     = $totalCount;
         $resultsArray['last_page'] = (int) ceil($totalCount / 15);
@@ -86,7 +84,6 @@ class SearchController extends Controller
                 ]
             );
 
-            // Borrar solo las claves necesarias
             Cache::forget('active_folders_list');
             Cache::forget('dash_kpis_v14');
             foreach (['virtual', 'physical'] as $type) {
@@ -96,7 +93,7 @@ class SearchController extends Controller
                 Cache::forget("dash_charts_v13_{$range}");
             }
 
-	   \App\Http\Controllers\DashboardController::warmCache();
+            \App\Http\Controllers\DashboardController::warmCache();
 
             return response()->json([
                 'message'     => "Proceso exitoso. Se movieron $updatedCount grabaciones a {$targetLocation->name}.",
@@ -132,7 +129,7 @@ class SearchController extends Controller
         ]);
     }
 
-    // --- 5. DESCARGA ZIP MASIVA CON ZIPSTREAM ---
+    // --- 5. DESCARGA ZIP MASIVA ---
     public function downloadZip(Request $request)
     {
         set_time_limit(0);
@@ -143,10 +140,9 @@ class SearchController extends Controller
             return response()->json(['message' => 'Seleccione archivos.'], 400);
         }
 
-        $maxLimit = 5000;
-        if (count($ids) > $maxLimit) {
+        if (count($ids) > 5000) {
             return response()->json([
-                'message' => "Límite excedido. Por seguridad, solo puedes descargar hasta {$maxLimit} archivos por ZIP."
+                'message' => "Límite excedido. Solo puedes descargar hasta 5,000 archivos por ZIP."
             ], 422);
         }
 
@@ -168,7 +164,6 @@ class SearchController extends Controller
             $campaignCounts[$campName]++;
         }
 
-        // Auditoría ANTES de iniciar el stream
         $this->auditAction(
             'Descarga ZIP',
             "ZIP con {$recordings->count()} archivos.",
@@ -176,7 +171,6 @@ class SearchController extends Controller
             ['file_count' => $recordings->count(), 'campaigns_breakdown' => $campaignCounts]
         );
 
-        // STREAMING DIRECTO AL NAVEGADOR
         return response()->stream(function () use ($recordings, $zipName) {
 
             $zip = new ZipStream(
@@ -186,12 +180,8 @@ class SearchController extends Controller
 
             foreach ($recordings as $rec) {
                 if (!file_exists($rec->full_path)) continue;
-
                 try {
-                    $zip->addFileFromPath(
-                        fileName: $rec->filename,
-                        path: $rec->full_path,
-                    );
+                    $zip->addFileFromPath(fileName: $rec->filename, path: $rec->full_path);
                 } catch (\Exception $e) {
                     Log::warning("ZipStream: No se pudo agregar {$rec->filename}: " . $e->getMessage());
                 }
@@ -206,6 +196,90 @@ class SearchController extends Controller
             'X-Accel-Buffering'   => 'no',
             'Expires'             => '0',
         ]);
+    }
+
+    // --- 6. STREAMING DE AUDIO ---
+    public function streamAudio(Request $request, $id)
+    {
+        // 1. Validar token manualmente
+        $token = $request->query('auth_token');
+        if (!$token) {
+            return response()->json(['message' => 'No autorizado.'], 401);
+        }
+
+        $personalToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+        if (!$personalToken || !$personalToken->tokenable) {
+            return response()->json(['message' => 'Token inválido o expirado.'], 401);
+        }
+
+        // 2. Verificar permiso de reproducción
+        $user         = $personalToken->tokenable;
+        $user->load('role');
+        $permisos     = $user->role ? ($user->role->permissions ?? []) : [];
+        $tienePermiso = in_array('*', $permisos) || in_array('Reproducir Audio', $permisos);
+
+        if (!$tienePermiso) {
+            return response()->json([
+                'message' => 'No tienes permiso para reproducir audio.'
+            ], 403);
+        }
+
+        // 3. Buscar grabación
+        $recording = Recording::findOrFail($id);
+
+        if (!file_exists($recording->full_path)) {
+            return response()->json(['message' => 'Archivo no encontrado en el servidor.'], 404);
+        }
+
+        $mimeTypes = [
+            'mp3' => 'audio/mpeg',
+            'wav' => 'audio/wav',
+            'ogg' => 'audio/ogg',
+            'aac' => 'audio/aac',
+            'wma' => 'audio/x-ms-wma',
+        ];
+
+        $ext      = strtolower(pathinfo($recording->full_path, PATHINFO_EXTENSION));
+        $mimeType = $mimeTypes[$ext] ?? 'audio/mpeg';
+        $fileSize = filesize($recording->full_path);
+
+        // 4. Soporte Range requests (permite seek en el reproductor)
+        $start   = 0;
+        $end     = $fileSize - 1;
+        $status  = 200;
+        $headers = [
+            'Content-Type'        => $mimeType,
+            'Content-Length'      => $fileSize,
+            'Accept-Ranges'       => 'bytes',
+            'Cache-Control'       => 'no-cache',
+            'X-Accel-Buffering'   => 'no',
+            'Content-Disposition' => 'inline; filename="' . $recording->filename . '"',
+        ];
+
+        if ($request->hasHeader('Range')) {
+            $range = $request->header('Range');
+            preg_match('/bytes=(\d+)-(\d*)/', $range, $matches);
+            $start  = (int) $matches[1];
+            $end    = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : $fileSize - 1;
+            $length = $end - $start + 1;
+            $status = 206;
+            $headers['Content-Length'] = $length;
+            $headers['Content-Range']  = "bytes {$start}-{$end}/{$fileSize}";
+        }
+
+        // 5. Stream del archivo
+        return response()->stream(function () use ($recording, $start, $end) {
+            $handle    = fopen($recording->full_path, 'rb');
+            fseek($handle, $start);
+            $remaining = $end - $start + 1;
+            while (!feof($handle) && $remaining > 0) {
+                $chunk     = min(8192, $remaining);
+                echo fread($handle, $chunk);
+                $remaining -= $chunk;
+                flush();
+            }
+            fclose($handle);
+        }, $status, $headers);
     }
 
     // Helper privado

@@ -10,6 +10,14 @@ const SearchRecordings = () => {
     const [selectedSizes, setSelectedSizes] = useState({});
     const [isLoading, setIsLoading]     = useState(false);
 
+    // ← NUEVO: reproductor de audio
+    const [audioModal, setAudioModal] = useState({ isOpen: false, item: null, url: null });
+
+    // Verificar permiso de reproducción
+    const userData  = JSON.parse(sessionStorage.getItem('user_data') || '{}');
+    const userPerms = userData.permissions || [];
+    const canPlay   = userPerms.includes('*') || userPerms.includes('Reproducir Audio');
+
     const [pagination, setPagination] = useState({
         currentPage: 1, lastPage: 1, total: 0, from: 0, to: 0
     });
@@ -128,6 +136,12 @@ const SearchRecordings = () => {
                 setSelectedSizes({ ...selectedSizes, [id]: item.size || 0 });
             }
         }
+    };
+
+    const handlePlay = (item) => {
+        const token = sessionStorage.getItem('auth_token');
+        const url   = `/api/search/stream/${item.id}?auth_token=${token}`;
+        setAudioModal({ isOpen: true, item, url });
     };
 
     const handleSingleDownload = async (item) => {
@@ -266,6 +280,73 @@ const SearchRecordings = () => {
                 onConfirm={alertConfig.onConfirm}
             />
 
+            {/* MODAL REPRODUCTOR DE AUDIO */}
+            {audioModal.isOpen && audioModal.item && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 99999,
+                    background: 'rgba(0,0,0,0.75)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '1rem'
+                }}>
+                    <div style={{
+                        background: 'white', borderRadius: '16px',
+                        padding: '2rem', width: '100%', maxWidth: '500px',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.4)'
+                    }}>
+                        {/* Header */}
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                            <h6 className="fw-bold mb-0" style={{color: '#005461'}}>
+                                <i className="bi bi-music-note-beamed me-2"></i>Reproductor de Audio
+                            </h6>
+                            <button
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={() => setAudioModal({ isOpen: false, item: null, url: null })}
+                            >
+                                <i className="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+
+                        {/* Info grabación */}
+                        <div className="p-3 rounded mb-3" style={{background: '#f8f9fa', border: '1px solid #e9ecef'}}>
+                            <div className="small fw-bold mb-2" style={{color: '#005461', wordBreak: 'break-all'}}>
+                                <i className="bi bi-file-earmark-music me-1"></i>
+                                {audioModal.item.filename}
+                            </div>
+                            <div className="d-flex flex-wrap gap-3 small text-muted">
+                                <span><i className="bi bi-person me-1"></i>{audioModal.item.cedula || '---'}</span>
+                                <span><i className="bi bi-telephone me-1"></i>{audioModal.item.telefono || '---'}</span>
+                                <span><i className="bi bi-hdd me-1"></i>{formatBytes(audioModal.item.size)}</span>
+                                <span><i className="bi bi-tag me-1"></i>{audioModal.item.campana || 'N/A'}</span>
+                            </div>
+                        </div>
+
+                        {/* Reproductor HTML5 */}
+                        <audio
+                            controls
+                            autoPlay
+                            style={{width: '100%', borderRadius: '8px'}}
+                            onError={() => {
+                                setAudioModal({ isOpen: false, item: null, url: null });
+                                showAlert('error', 'Error', 'No se pudo reproducir el archivo de audio.');
+                            }}
+                        >
+                            <source
+                                src={audioModal.url}
+                                type={audioModal.item.filename?.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'}
+                            />
+                            Tu navegador no soporta el reproductor de audio.
+                        </audio>
+
+                        <div className="text-center mt-3">
+                            <small className="text-muted">
+                                <i className="bi bi-shield-lock me-1"></i>
+                                Audio en streaming seguro — no se descarga en tu equipo
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <h2 className={styles.pageTitle}>
                     <i className="bi bi-music-note-list me-2"></i> Búsqueda de Grabaciones
@@ -384,6 +465,16 @@ const SearchRecordings = () => {
                                                 </span>
                                             </td>
                                             <td className="text-center">
+                                                {/* ← NUEVO: botón reproducir */}
+                                                {canPlay && (
+                                                    <button
+                                                        className="btn btn-sm btn-outline-primary me-1"
+                                                        onClick={() => handlePlay(item)}
+                                                        title="Reproducir audio"
+                                                    >
+                                                        <i className="bi bi-play-circle"></i>
+                                                    </button>
+                                                )}
                                                 <button className="btn btn-sm btn-outline-success"
                                                     onClick={() => handleSingleDownload(item)}
                                                     title={`Descargar (${formatBytes(item.size)})`}>
@@ -404,7 +495,7 @@ const SearchRecordings = () => {
                     </div>
                 </div>
 
-                {/* ← PAGINACIÓN CON CONTADOR */}
+                {/* PAGINACIÓN CON CONTADOR */}
                 <div className="card-footer bg-white border-0 py-2 d-flex justify-content-between align-items-center">
                     <div className="text-muted small">
                         {pagination.total > 0

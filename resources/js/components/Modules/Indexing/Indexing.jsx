@@ -3,10 +3,10 @@ import styles from './Indexing.module.css';
 import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 // ← CLAVES de sessionStorage para persistir estado
-const SK_JOB     = 'indexing_job';
-const SK_LOGS    = 'indexing_logs';
-const SK_STATS   = 'indexing_stats';
-const SK_PATH    = 'indexing_path';
+const SK_JOB   = 'indexing_job';
+const SK_LOGS  = 'indexing_logs';
+const SK_STATS = 'indexing_stats';
+const SK_PATH  = 'indexing_path';
 
 const Indexing = () => {
 
@@ -23,9 +23,14 @@ const Indexing = () => {
     const [folderPath, setFolderPath]     = useState(savedPath);
     const [isScanning, setIsScanning]     = useState(savedJob?.type === 'scan');
     const [isIndexing, setIsIndexing]     = useState(savedJob?.type === 'index');
-    const [progressData, setProgressData] = useState({ percentage: savedJob?.percentage || 0, status: savedJob ? 'processing' : 'idle' });
-    const [logs, setLogs]                 = useState(savedLogs || [{ type: 'info', msg: 'Sistema listo. Ingrese una ruta y presione Iniciar.' }]);
-    const [options, setOptions]           = useState({ skipDuplicates: true });
+    const [progressData, setProgressData] = useState({
+        percentage: savedJob?.percentage || 0,
+        status:     savedJob ? 'processing' : 'idle'
+    });
+    const [logs, setLogs]     = useState(savedLogs || [{
+        type: 'info', msg: 'Sistema listo. Ingrese una ruta y presione Iniciar.'
+    }]);
+    const [options, setOptions] = useState({ skipDuplicates: true });
 
     const consoleContainerRef = useRef(null);
     const pollRetries         = useRef(0);
@@ -45,18 +50,17 @@ const Indexing = () => {
         const time = new Date().toLocaleTimeString();
         setLogs(prev => {
             const newLogs = [...prev, { type, msg, time }];
-            // ← Persistir logs en sessionStorage
             sessionStorage.setItem(SK_LOGS, JSON.stringify(newLogs));
             return newLogs;
         });
     };
 
-    // ← Persistir stats cuando cambian
+    // ← Persistir stats
     useEffect(() => {
         sessionStorage.setItem(SK_STATS, JSON.stringify(stats));
     }, [stats]);
 
-    // ← Persistir ruta cuando cambia
+    // ← Persistir ruta
     useEffect(() => {
         sessionStorage.setItem(SK_PATH, folderPath);
     }, [folderPath]);
@@ -67,7 +71,7 @@ const Indexing = () => {
         }
     }, [logs, progressData]);
 
-    // ← Si había un job activo al montar, retomar el polling
+    // ← Retomar job activo al montar
     useEffect(() => {
         if (savedJob?.jobId) {
             addLog('info', `🔄 Retomando proceso en curso (Job: ${savedJob.jobId})...`);
@@ -76,7 +80,7 @@ const Indexing = () => {
         }
     }, []);
 
-    // --- GUARDAR JOB ACTIVO ---
+    // --- GUARDAR / LIMPIAR JOB ---
     const saveJob = (jobId, type, percentage = 0) => {
         sessionStorage.setItem(SK_JOB, JSON.stringify({
             jobId,
@@ -90,7 +94,43 @@ const Indexing = () => {
         sessionStorage.removeItem(SK_JOB);
     };
 
-    // --- RADAR DE PROGRESO UNIVERSAL ---
+    // --- CANCELAR PROCESO ---
+    const handleCancel = (jobId) => {
+        showAlert('delete', '¿Cancelar proceso?',
+            'Se detendrá el proceso en el servidor. ¿Estás seguro?',
+            async () => {
+                try {
+                    const token    = sessionStorage.getItem('auth_token');
+                    const response = await fetch('/api/indexing/cancel', {
+                        method:  'POST',
+                        headers: {
+                            'Content-Type':  'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ job_id: jobId })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        clearJob();
+                        sessionStorage.removeItem(SK_LOGS);
+                        setIsScanning(false);
+                        setIsIndexing(false);
+                        setProgressData({ percentage: 0, status: 'idle' });
+                        setLogs([{ type: 'info', msg: 'Sistema listo. Ingrese una ruta y presione Iniciar.' }]);
+                        showAlert('info', 'Proceso Cancelado', data.message);
+                    } else {
+                        showAlert('error', 'Error', data.message || 'No se pudo cancelar.');
+                    }
+                } catch (error) {
+                    showAlert('error', 'Error', 'Fallo de conexión al cancelar.');
+                }
+            }
+        );
+    };
+
+    // --- RADAR DE PROGRESO ---
     const pollProgress = async (jobId, isScanType = false) => {
         try {
             const token    = sessionStorage.getItem('auth_token');
@@ -104,7 +144,6 @@ const Indexing = () => {
             if (data.status === 'processing' || data.status === 'starting' || data.status === 'scanning') {
                 if (!isScanType) {
                     setProgressData({ percentage: data.percentage, status: 'processing' });
-                    // ← Actualizar porcentaje en sessionStorage
                     saveJob(jobId, 'index', data.percentage);
                     if (data.procesados && data.total) {
                         addLog('info', `Procesados: ${data.procesados.toLocaleString()} / ${data.total.toLocaleString()} archivos (${data.percentage}%)`);
@@ -116,7 +155,7 @@ const Indexing = () => {
                 setTimeout(() => pollProgress(jobId, isScanType), delay);
             }
             else if (data.status === 'completed') {
-                clearJob(); // ← Limpiar job al completar
+                clearJob();
                 if (isScanType) {
                     setStats(prev => ({
                         ...prev,
@@ -141,11 +180,18 @@ const Indexing = () => {
                     }
                 }
             }
+            else if (data.status === 'cancelled') {
+                clearJob();
+                setIsScanning(false);
+                setIsIndexing(false);
+                setProgressData({ percentage: 0, status: 'idle' });
+                addLog('error', '🛑 Proceso cancelado.');
+            }
             else if (data.status === 'error') {
                 clearJob();
                 addLog('error', `❌ Error en el proceso: ${data.message || 'Error desconocido'}`);
                 showAlert('error', 'Error en el proceso',
-                    data.message || 'Ocurrió un error inesperado. Revisa los logs del servidor.');
+                    data.message || 'Ocurrió un error inesperado.');
                 setIsScanning(false);
                 setIsIndexing(false);
             }
@@ -167,7 +213,7 @@ const Indexing = () => {
                 setTimeout(() => pollProgress(jobId, isScanType), delay);
             } else {
                 clearJob();
-                addLog('error', '❌ Se perdió la conexión con el servidor después de varios intentos.');
+                addLog('error', '❌ Se perdió la conexión con el servidor.');
                 showAlert('error', 'Sin conexión',
                     'No se pudo contactar al servidor. Verifica tu red e intenta de nuevo.');
                 setIsScanning(false);
@@ -176,7 +222,7 @@ const Indexing = () => {
         }
     };
 
-    // --- MANEJADOR DE ESCANEO ---
+    // --- ESCANEO ---
     const handleScan = async () => {
         if (!folderPath) return showAlert('error', 'Error', 'La ruta no puede estar vacía.');
 
@@ -195,7 +241,7 @@ const Indexing = () => {
             const data = await response.json();
 
             if (response.ok) {
-                saveJob(data.job_id, 'scan'); // ← Guardar job
+                saveJob(data.job_id, 'scan');
                 addLog('info', 'Escaneo en marcha. Contando archivos en segundo plano...');
                 pollProgress(data.job_id, true);
             } else {
@@ -209,7 +255,7 @@ const Indexing = () => {
         }
     };
 
-    // --- MANEJADOR DE INDEXACIÓN ---
+    // --- INDEXACIÓN ---
     const handleIndex = async () => {
         if (!folderPath) return showAlert('warning', 'Ruta Requerida', 'Ingresa una ruta válida.');
 
@@ -229,7 +275,7 @@ const Indexing = () => {
             const data = await response.json();
 
             if (response.ok) {
-                saveJob(data.job_id, 'index'); // ← Guardar job
+                saveJob(data.job_id, 'index');
                 addLog('info', 'Indexación en segundo plano iniciada. Conectando radar...');
                 pollProgress(data.job_id, false);
             } else {
@@ -243,6 +289,9 @@ const Indexing = () => {
         }
     };
 
+    // Job activo para el botón cancelar
+    const currentJob = JSON.parse(sessionStorage.getItem(SK_JOB) || 'null');
+
     return (
         <div className={`container-fluid p-0 ${styles.fadeIn} ${styles.fullHeightContainer}`}>
             <CustomAlert
@@ -251,6 +300,7 @@ const Indexing = () => {
                 title={alertConfig.title}
                 message={alertConfig.message}
                 onClose={closeAlert}
+                onConfirm={alertConfig.onConfirm}
             />
 
             <h2 className={`mb-3 ${styles.pageTitle}`}>
@@ -367,6 +417,26 @@ const Indexing = () => {
                                         ></div>
                                     </div>
                                 </div>
+                            )}
+
+                            {/* ← BOTÓN CANCELAR ESCANEO */}
+                            {isScanning && currentJob?.jobId && (
+                                <button
+                                    className="btn btn-sm btn-outline-danger w-100 mb-2"
+                                    onClick={() => handleCancel(currentJob.jobId)}
+                                >
+                                    <i className="bi bi-stop-circle me-2"></i> Cancelar Escaneo
+                                </button>
+                            )}
+
+                            {/* ← BOTÓN CANCELAR INDEXACIÓN */}
+                            {isIndexing && currentJob?.jobId && (
+                                <button
+                                    className="btn btn-sm btn-outline-danger w-100 mb-2"
+                                    onClick={() => handleCancel(currentJob.jobId)}
+                                >
+                                    <i className="bi bi-stop-circle me-2"></i> Cancelar Indexación
+                                </button>
                             )}
 
                             <button

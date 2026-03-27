@@ -79,21 +79,21 @@ class IndexRecordings extends Command
 
             $rootLocationId = $location->id;
 
-            // 4. ✅ CARGA OPTIMIZADA — Solo paths de ESA carpeta, no de toda la BD
-            $this->info("Cargando índice de duplicados solo para esta carpeta...");
+            // 4. ✅ CARGA OPTIMIZADA — Por storage_location_id (usa índice, ultra rápido)
+            $this->info("Cargando índice de duplicados por ubicación...");
             $existingPaths = [];
 
             DB::table('recordings')
                 ->select('full_path')
-                ->where('full_path', 'like', $rootPath . '%')
+                ->where('storage_location_id', $rootLocationId)
                 ->orderBy('id')
-                ->chunk(10000, function ($records) use (&$existingPaths) {
+                ->chunk(50000, function ($records) use (&$existingPaths) {
                     foreach ($records as $record) {
                         $existingPaths[$record->full_path] = true;
                     }
                 });
 
-            $this->info("Índice cargado: " . count($existingPaths) . " paths existentes en esta carpeta.");
+            $this->info("Índice cargado: " . count($existingPaths) . " paths existentes en esta ubicación.");
 
             // 5. STREAMING PURO CON BATCH INSERT
             $findCmd = "timeout 7200 find " . escapeshellarg($rootPath)

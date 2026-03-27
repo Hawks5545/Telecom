@@ -130,6 +130,43 @@ class IndexingController extends Controller
         return response()->json($progress);
     }
 
+
+   /**
+ * CANCELAR PROCESO EN CURSO
+ */
+	public function cancelProcess(Request $request)
+	{
+	    $jobId = $request->input('job_id');
+
+	    if (!$jobId) {
+	        return response()->json(['message' => 'Job ID requerido.'], 400);
+	    }
+
+	    try {
+	        // Buscar y matar el proceso por job_id
+	        $escaped = escapeshellarg($jobId);
+	        $pid     = trim(shell_exec("pgrep -f {$escaped}"));
+
+	        if ($pid) {
+	            shell_exec("kill -9 {$pid}");
+	            $this->logAudit(Auth::id(), 'Cancelar Proceso', "Job cancelado: {$jobId}");
+	        }
+
+	        // Marcar como cancelado en caché
+	        Cache::put("progress_{$jobId}", [
+	            'status'     => 'cancelled',
+	            'percentage' => 0,
+	            'message'    => 'Proceso cancelado por el usuario.'
+	        ], 3600);
+
+	        return response()->json(['message' => 'Proceso cancelado correctamente.']);
+
+	    } catch (\Exception $e) {
+	        Log::error("Error al cancelar proceso: " . $e->getMessage());
+	        return response()->json(['message' => 'Error al cancelar.'], 500);
+	    }
+	}
+ 
     private function logAudit($userId, $action, $details)
     {
         try {

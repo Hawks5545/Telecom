@@ -21,6 +21,7 @@ const RoleModal = ({ isOpen, onClose, onSuccess }) => {
         "Gestor de Carpetas",
         "Indexación",
         "Descarga Masiva",
+	"Reproducir Audio",
         "Auditorías",
         "Reportes"
     ];
