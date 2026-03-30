@@ -14,6 +14,15 @@ use ZipStream\ZipStream;
 
 class SearchController extends Controller
 {
+    // --- HELPER: Verificar permiso ---
+    private function verificarPermiso(string $permiso): bool
+    {
+        $user     = Auth::user();
+        $user->load('role');
+        $permisos = $user->role ? ($user->role->permissions ?? []) : [];
+        return in_array('*', $permisos) || in_array($permiso, $permisos);
+    }
+
     // --- 1. OBTENER CARPETAS ---
     public function getFolders()
     {
@@ -23,11 +32,10 @@ class SearchController extends Controller
                 ->orderBy('name')
                 ->get();
         });
-
         return response()->json($folders);
     }
 
-    // --- 2. BÚSQUEDA OPTIMIZADA CON CONTEO EN CACHÉ ---
+    // --- 2. BÚSQUEDA ---
     public function search(Request $request)
     {
         if ($request->filled('cedula') && strlen($request->cedula) < 4) {
@@ -77,11 +85,7 @@ class SearchController extends Controller
                 'Mover Grabaciones',
                 "Reasignó $updatedCount archivos a campaña: {$targetLocation->name}",
                 $request,
-                [
-                    'target_folder' => $targetLocation->name,
-                    'count'         => $updatedCount,
-                    'mode'          => 'virtual_move'
-                ]
+                ['target_folder' => $targetLocation->name, 'count' => $updatedCount, 'mode' => 'virtual_move']
             );
 
             Cache::forget('active_folders_list');
@@ -105,6 +109,10 @@ class SearchController extends Controller
     // --- 4. DESCARGA INDIVIDUAL ---
     public function downloadItem(Request $request, $id)
     {
+        if (!$this->verificarPermiso('Descargar Grabaciones')) {
+            return response()->json(['message' => 'No tienes permiso para descargar grabaciones.'], 403);
+        }
+
         $recording = Recording::findOrFail($id);
         $pathToUse = $recording->full_path;
 
@@ -132,6 +140,10 @@ class SearchController extends Controller
     // --- 5. DESCARGA ZIP MASIVA ---
     public function downloadZip(Request $request)
     {
+        if (!$this->verificarPermiso('Descargar Grabaciones')) {
+            return response()->json(['message' => 'No tienes permiso para descargar grabaciones.'], 403);
+        }
+
         set_time_limit(0);
 
         $ids = $request->input('ids', []);
@@ -172,12 +184,7 @@ class SearchController extends Controller
         );
 
         return response()->stream(function () use ($recordings, $zipName) {
-
-            $zip = new ZipStream(
-                outputName: $zipName,
-                sendHttpHeaders: false,
-            );
-
+            $zip = new ZipStream(outputName: $zipName, sendHttpHeaders: false);
             foreach ($recordings as $rec) {
                 if (!file_exists($rec->full_path)) continue;
                 try {
@@ -186,9 +193,7 @@ class SearchController extends Controller
                     Log::warning("ZipStream: No se pudo agregar {$rec->filename}: " . $e->getMessage());
                 }
             }
-
             $zip->finish();
-
         }, 200, [
             'Content-Type'        => 'application/zip',
             'Content-Disposition' => 'attachment; filename="' . $zipName . '"',
@@ -201,7 +206,6 @@ class SearchController extends Controller
     // --- 6. STREAMING DE AUDIO ---
     public function streamAudio(Request $request, $id)
     {
-        // 1. Validar token manualmente
         $token = $request->query('auth_token');
         if (!$token) {
             return response()->json(['message' => 'No autorizado.'], 401);
@@ -212,19 +216,15 @@ class SearchController extends Controller
             return response()->json(['message' => 'Token inválido o expirado.'], 401);
         }
 
-        // 2. Verificar permiso de reproducción
         $user         = $personalToken->tokenable;
         $user->load('role');
         $permisos     = $user->role ? ($user->role->permissions ?? []) : [];
         $tienePermiso = in_array('*', $permisos) || in_array('Reproducir Audio', $permisos);
 
         if (!$tienePermiso) {
-            return response()->json([
-                'message' => 'No tienes permiso para reproducir audio.'
-            ], 403);
+            return response()->json(['message' => 'No tienes permiso para reproducir audio.'], 403);
         }
 
-        // 3. Buscar grabación
         $recording = Recording::findOrFail($id);
 
         if (!file_exists($recording->full_path)) {
@@ -243,7 +243,6 @@ class SearchController extends Controller
         $mimeType = $mimeTypes[$ext] ?? 'audio/mpeg';
         $fileSize = filesize($recording->full_path);
 
-        // 4. Soporte Range requests (permite seek en el reproductor)
         $start   = 0;
         $end     = $fileSize - 1;
         $status  = 200;
@@ -267,7 +266,6 @@ class SearchController extends Controller
             $headers['Content-Range']  = "bytes {$start}-{$end}/{$fileSize}";
         }
 
-        // 5. Stream del archivo
         return response()->stream(function () use ($recording, $start, $end) {
             $handle    = fopen($recording->full_path, 'rb');
             fseek($handle, $start);
@@ -282,7 +280,6 @@ class SearchController extends Controller
         }, $status, $headers);
     }
 
-    // Helper privado
     private function auditAction($action, $details, $request, $metadata = [])
     {
         try {

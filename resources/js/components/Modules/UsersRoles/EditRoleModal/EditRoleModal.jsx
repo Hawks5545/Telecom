@@ -1,50 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import styles from './EditRoleModal.module.css';
 
-const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => { 
-    // Si no está abierto o no hay rol, no renderiza nada
+const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
     if (!isOpen || !role) return null;
 
-    // 1. CORRECCIÓN: Usamos 'name' (interno) para detectar al admin, no el nombre visible
     const isProtectedAdmin = role.name === 'admin';
 
-    const [formData, setFormData] = useState({
-        display_name: '',
-        description: ''
-    });
-
+    const [formData, setFormData]       = useState({ display_name: '', description: '' });
     const [selectedPerms, setSelectedPerms] = useState([]);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting]   = useState(false);
+    const [error, setError]                 = useState('');
 
-    // LISTA MAESTRA DE PERMISOS (Debe ser idéntica a la de RoleModal)
     const availablePermissions = [
         "Dashboard",
         "Búsqueda de Grabaciones",
         "Gestor de Carpetas",
         "Indexación",
-	"Descarga Masiva",
+        "Descarga Masiva",
+        "Descargar Grabaciones",
         "Reproducir Audio",
         "Auditorías",
         "Reportes"
     ];
 
-    // 2. CARGAR DATOS: Sincronizamos con lo que viene de Laravel
     useEffect(() => {
         if (role) {
             setFormData({
-                display_name: role.display_name || '', 
-                description: role.description || ''
+                display_name: role.display_name || '',
+                description:  role.description  || ''
             });
             setSelectedPerms(role.permissions || []);
         }
     }, [role]);
 
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
     const handleCheckChange = (perm) => {
@@ -55,7 +45,6 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
         }
     };
 
-    // 3. GUARDAR CAMBIOS (Lógica Backend)
     const handleSave = async () => {
         setIsSubmitting(true);
         setError('');
@@ -64,29 +53,28 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
 
         try {
             const response = await fetch(`/api/roles/${role.id}`, {
-                method: 'PUT',
+                method:  'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
+                    'Content-Type':  'application/json',
+                    'Accept':        'application/json',
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     display_name: formData.display_name,
-                    description: formData.description,
-                    permisos: selectedPerms 
+                    description:  formData.description,
+                    permisos:     selectedPerms
                 })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                if (onSuccess) onSuccess(); 
-                onClose(); 
+                if (onSuccess) onSuccess();
+                onClose();
             } else {
                 setError(data.message || 'Error al actualizar el rol.');
             }
         } catch (err) {
-            console.error(err);
             setError('Error de conexión con el servidor.');
         } finally {
             setIsSubmitting(false);
@@ -111,30 +99,20 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
                     <form className="row g-3" onSubmit={(e) => e.preventDefault()}>
                         <div className="col-12">
                             <label className={styles.label}>Nombre del Rol</label>
-                            <input 
-                                type="text" 
-                                name="display_name"
-                                className={`form-control ${isProtectedAdmin ? styles.readOnlyInput : ''}`} 
-                                value={formData.display_name} 
+                            <input type="text" name="display_name"
+                                className={`form-control ${isProtectedAdmin ? styles.readOnlyInput : ''}`}
+                                value={formData.display_name}
                                 onChange={handleChange}
-                                disabled={isProtectedAdmin} 
-                            />
+                                disabled={isProtectedAdmin} />
                         </div>
-                        
                         <div className="col-12">
                             <label className={styles.label}>Descripción</label>
-                            <textarea 
-                                name="description"
-                                className="form-control" 
-                                rows="2" 
-                                value={formData.description} 
-                                onChange={handleChange}
-                            ></textarea>
+                            <textarea name="description" className="form-control" rows="2"
+                                value={formData.description}
+                                onChange={handleChange}></textarea>
                         </div>
-                        
                         <div className="col-12">
                             <label className={styles.label}>Permisos Asignados</label>
-                            
                             {isProtectedAdmin ? (
                                 <div className="alert alert-warning d-flex align-items-center mt-2">
                                     <i className="bi bi-lock-fill fs-4 me-3"></i>
@@ -144,16 +122,13 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
                                     </div>
                                 </div>
                             ) : (
-                                <div className={styles.permissionsGrid} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
                                     {availablePermissions.map((perm, index) => (
                                         <div className="form-check" key={index}>
-                                            <input 
-                                                className="form-check-input" 
-                                                type="checkbox" 
+                                            <input className="form-check-input" type="checkbox"
                                                 id={`edit-perm-${index}`}
                                                 checked={selectedPerms.includes(perm)}
-                                                onChange={() => handleCheckChange(perm)}
-                                            />
+                                                onChange={() => handleCheckChange(perm)} />
                                             <label className="form-check-label small" htmlFor={`edit-perm-${index}`}>
                                                 {perm}
                                             </label>
@@ -169,11 +144,7 @@ const EditRoleModal = ({ isOpen, onClose, role, onSuccess }) => {
                     <button className={styles.btnCancel} onClick={onClose} disabled={isSubmitting}>
                         Cancelar
                     </button>
-                    <button 
-                        className={styles.btnSave} 
-                        onClick={handleSave} 
-                        disabled={isSubmitting}
-                    >
+                    <button className={styles.btnSave} onClick={handleSave} disabled={isSubmitting}>
                         {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
                     </button>
                 </div>

@@ -4,19 +4,20 @@ import CustomAlert from '../../Common/CustomAlert/CustomAlert';
 
 const SearchRecordings = () => {
 
-    const [allData, setAllData]         = useState([]);
-    const [folders, setFolders]         = useState([]);
+    const [allData, setAllData]             = useState([]);
+    const [folders, setFolders]             = useState([]);
     const [selectedItems, setSelectedItems] = useState([]);
     const [selectedSizes, setSelectedSizes] = useState({});
-    const [isLoading, setIsLoading]     = useState(false);
+    const [isLoading, setIsLoading]         = useState(false);
 
-    // ← NUEVO: reproductor de audio
+    // ← Reproductor de audio
     const [audioModal, setAudioModal] = useState({ isOpen: false, item: null, url: null });
 
-    // Verificar permiso de reproducción
-    const userData  = JSON.parse(sessionStorage.getItem('user_data') || '{}');
-    const userPerms = userData.permissions || [];
-    const canPlay   = userPerms.includes('*') || userPerms.includes('Reproducir Audio');
+    // Permisos
+    const userData    = JSON.parse(sessionStorage.getItem('user_data') || '{}');
+    const userPerms   = userData.permissions || [];
+    const canPlay     = userPerms.includes('*') || userPerms.includes('Reproducir Audio');
+    const canDownload = userPerms.includes('*') || userPerms.includes('Descargar Grabaciones');
 
     const [pagination, setPagination] = useState({
         currentPage: 1, lastPage: 1, total: 0, from: 0, to: 0
@@ -138,6 +139,7 @@ const SearchRecordings = () => {
         }
     };
 
+    // ← Reproducir audio
     const handlePlay = (item) => {
         const token = sessionStorage.getItem('auth_token');
         const url   = `/api/search/stream/${item.id}?auth_token=${token}`;
@@ -293,20 +295,16 @@ const SearchRecordings = () => {
                         padding: '2rem', width: '100%', maxWidth: '500px',
                         boxShadow: '0 20px 60px rgba(0,0,0,0.4)'
                     }}>
-                        {/* Header */}
                         <div className="d-flex justify-content-between align-items-center mb-3">
                             <h6 className="fw-bold mb-0" style={{color: '#005461'}}>
                                 <i className="bi bi-music-note-beamed me-2"></i>Reproductor de Audio
                             </h6>
-                            <button
-                                className="btn btn-sm btn-outline-secondary"
-                                onClick={() => setAudioModal({ isOpen: false, item: null, url: null })}
-                            >
+                            <button className="btn btn-sm btn-outline-secondary"
+                                onClick={() => setAudioModal({ isOpen: false, item: null, url: null })}>
                                 <i className="bi bi-x-lg"></i>
                             </button>
                         </div>
 
-                        {/* Info grabación */}
                         <div className="p-3 rounded mb-3" style={{background: '#f8f9fa', border: '1px solid #e9ecef'}}>
                             <div className="small fw-bold mb-2" style={{color: '#005461', wordBreak: 'break-all'}}>
                                 <i className="bi bi-file-earmark-music me-1"></i>
@@ -320,16 +318,11 @@ const SearchRecordings = () => {
                             </div>
                         </div>
 
-                        {/* Reproductor HTML5 */}
-                        <audio
-                            controls
-                            autoPlay
-                            style={{width: '100%', borderRadius: '8px'}}
+                        <audio controls autoPlay style={{width: '100%', borderRadius: '8px'}}
                             onError={() => {
                                 setAudioModal({ isOpen: false, item: null, url: null });
                                 showAlert('error', 'Error', 'No se pudo reproducir el archivo de audio.');
-                            }}
-                        >
+                            }}>
                             <source
                                 src={audioModal.url}
                                 type={audioModal.item.filename?.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'}
@@ -351,7 +344,7 @@ const SearchRecordings = () => {
                 <h2 className={styles.pageTitle}>
                     <i className="bi bi-music-note-list me-2"></i> Búsqueda de Grabaciones
                 </h2>
-                {selectedItems.length > 0 && (
+                {selectedItems.length > 0 && canDownload && (
                     <button className={`btn ${styles.btnDownloadMassive}`} onClick={handleMassiveDownload}>
                         <i className="bi bi-cloud-download-fill me-2"></i>
                         Descargar {selectedItems.length} ({totalSelectedSize})
@@ -465,21 +458,20 @@ const SearchRecordings = () => {
                                                 </span>
                                             </td>
                                             <td className="text-center">
-                                                {/* ← NUEVO: botón reproducir */}
                                                 {canPlay && (
-                                                    <button
-                                                        className="btn btn-sm btn-outline-primary me-1"
+                                                    <button className="btn btn-sm btn-outline-primary me-1"
                                                         onClick={() => handlePlay(item)}
-                                                        title="Reproducir audio"
-                                                    >
+                                                        title="Reproducir audio">
                                                         <i className="bi bi-play-circle"></i>
                                                     </button>
                                                 )}
-                                                <button className="btn btn-sm btn-outline-success"
-                                                    onClick={() => handleSingleDownload(item)}
-                                                    title={`Descargar (${formatBytes(item.size)})`}>
-                                                    <i className="bi bi-download"></i>
-                                                </button>
+                                                {canDownload && (
+                                                    <button className="btn btn-sm btn-outline-success"
+                                                        onClick={() => handleSingleDownload(item)}
+                                                        title={`Descargar (${formatBytes(item.size)})`}>
+                                                        <i className="bi bi-download"></i>
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
                                     ))
@@ -495,7 +487,7 @@ const SearchRecordings = () => {
                     </div>
                 </div>
 
-                {/* PAGINACIÓN CON CONTADOR */}
+                {/* PAGINACIÓN */}
                 <div className="card-footer bg-white border-0 py-2 d-flex justify-content-between align-items-center">
                     <div className="text-muted small">
                         {pagination.total > 0

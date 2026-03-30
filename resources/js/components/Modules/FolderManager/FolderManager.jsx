@@ -32,7 +32,12 @@ const FolderManager = () => {
     const [editingFolder, setEditingFolder]     = useState(null);
     const [isSaving, setIsSaving]               = useState(false);
 
-    // ← NUEVO: ref para AbortController de descarga
+    // ← Permisos
+    const userData    = JSON.parse(sessionStorage.getItem('user_data') || '{}');
+    const userPerms   = userData.permissions || [];
+    const canDownload = userPerms.includes('*') || userPerms.includes('Descargar Grabaciones');
+
+    // ← AbortController para cancelar descarga
     const downloadAbortRef = useRef(null);
     const [isDownloading, setIsDownloading] = useState(false);
 
@@ -223,7 +228,6 @@ const FolderManager = () => {
         setPagination(prev => ({ ...prev, currentPage: 1 }));
     };
 
-    // ← NUEVO: cancelar descarga en curso
     const handleCancelDownload = () => {
         if (downloadAbortRef.current) {
             downloadAbortRef.current.abort();
@@ -237,7 +241,6 @@ const FolderManager = () => {
         const isFolder = item.type === 'folder';
         const sizeInfo = item.size_bytes ? formatBytes(item.size_bytes) : 'Desconocido';
 
-        // ← NUEVO: bloquear descarga si carpeta supera 5000 grabaciones
         if (isFolder && item.items > 5000) {
             showAlert('error', 'Límite Excedido',
                 `Esta carpeta contiene ${item.items.toLocaleString()} grabaciones.\n\nEl límite máximo de descarga es 5,000 archivos por ZIP.\n\nPor favor filtra las grabaciones que necesitas desde el módulo de Búsqueda.`
@@ -260,22 +263,17 @@ const FolderManager = () => {
             ? `/api/folder-manager/download-folder/${item.id}?t=${new Date().getTime()}`
             : `/api/folder-manager/download/${item.id}?t=${new Date().getTime()}`;
 
-        // ← NUEVO: crear AbortController para esta descarga
-        const abortController      = new AbortController();
-        downloadAbortRef.current   = abortController;
+        const abortController    = new AbortController();
+        downloadAbortRef.current = abortController;
         setIsDownloading(true);
 
         try {
-            showAlert('loading',
-                isFolder ? 'Preparando ZIP...' : 'Conectando...',
-                'Iniciando descarga...',
-                // ← NUEVO: onConfirm del loading será cancelar
-                handleCancelDownload
-            );
+            showAlert('loading', isFolder ? 'Preparando ZIP...' : 'Conectando...',
+                'Iniciando descarga...', handleCancelDownload);
 
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` },
-                signal: abortController.signal // ← NUEVO: señal de cancelación
+                signal: abortController.signal
             });
 
             if (!response.ok) {
@@ -293,7 +291,6 @@ const FolderManager = () => {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-
                 chunks.push(value);
                 receivedLength += value.length;
 
@@ -304,20 +301,17 @@ const FolderManager = () => {
                         const percent = ((receivedLength / contentLength) * 100).toFixed(0);
                         showAlert('loading', 'Descargando...',
                             `Progreso: ${percent}% (${mb} MB)\n\nPresiona Cancelar para detener.`,
-                            handleCancelDownload
-                        );
+                            handleCancelDownload);
                     } else {
                         showAlert('loading', 'Descargando...',
                             `Recibiendo datos: ${mb} MB descargados...\n\nPresiona Cancelar para detener.`,
-                            handleCancelDownload
-                        );
+                            handleCancelDownload);
                     }
                     lastUiUpdateTime = now;
                 }
             }
 
             showAlert('loading', 'Finalizando...', 'Guardando el archivo en tu equipo...');
-
             const blob = new Blob(chunks);
             const link = window.URL.createObjectURL(blob);
             const a    = document.createElement('a');
@@ -334,11 +328,9 @@ const FolderManager = () => {
         } catch (error) {
             setIsDownloading(false);
             downloadAbortRef.current = null;
-            // Si fue cancelado intencionalmente no mostrar error
             if (error.name === 'AbortError') {
                 showAlert('info', 'Descarga Cancelada', 'La descarga fue cancelada correctamente.');
             } else {
-                console.error("Error de red durante la descarga:", error);
                 showAlert('error', 'Error', 'Se perdió la conexión durante la descarga.');
             }
         }
@@ -520,7 +512,6 @@ const FolderManager = () => {
                                                                 {item.items.toLocaleString()} archivos
                                                             </span>
                                                             <span className="text-muted">Peso: {formatBytes(item.size_bytes)}</span>
-                                                            {/* ← NUEVO: aviso si supera el límite */}
                                                             {item.items > 5000 && (
                                                                 <span className="text-danger" style={{fontSize: '0.75rem'}}>
                                                                     <i className="bi bi-exclamation-triangle me-1"></i>
@@ -551,10 +542,12 @@ const FolderManager = () => {
                                                             onClick={() => handleOpenFolder(item)} title="Abrir">
                                                             <i className="bi bi-folder2-open"></i>
                                                         </button>
-                                                        <button className="btn btn-sm btn-outline-success me-1"
-                                                            onClick={() => handleDownload(item)} title="Descargar ZIP">
-                                                            <i className="bi bi-file-earmark-zip"></i>
-                                                        </button>
+                                                        {canDownload && (
+                                                            <button className="btn btn-sm btn-outline-success me-1"
+                                                                onClick={() => handleDownload(item)} title="Descargar ZIP">
+                                                                <i className="bi bi-file-earmark-zip"></i>
+                                                            </button>
+                                                        )}
                                                         <button className="btn btn-sm btn-outline-primary me-1"
                                                             onClick={() => { setEditingFolder(item); setNewFolderName(item.name); setShowCreateModal(true); }}>
                                                             <i className="bi bi-pencil"></i>
@@ -565,10 +558,12 @@ const FolderManager = () => {
                                                         </button>
                                                     </>
                                                 ) : (
-                                                    <button className="btn btn-sm btn-outline-success"
-                                                        onClick={() => handleDownload(item)} title="Descargar">
-                                                        <i className="bi bi-download"></i>
-                                                    </button>
+                                                    canDownload && (
+                                                        <button className="btn btn-sm btn-outline-success"
+                                                            onClick={() => handleDownload(item)} title="Descargar">
+                                                            <i className="bi bi-download"></i>
+                                                        </button>
+                                                    )
                                                 )}
                                             </td>
                                         </tr>
@@ -594,7 +589,6 @@ const FolderManager = () => {
                                 : `Mostrando audios ${pagination.from || 0} - ${pagination.to || 0}`
                             }
                         </div>
-                        {/* ← Solo mostrar paginación si hay páginas anteriores o siguientes */}
                         {!pagination.isFolderView && (pagination.hasPrev || pagination.hasNext) && (
                             <div>
                                 <button className="btn btn-sm btn-light me-1"

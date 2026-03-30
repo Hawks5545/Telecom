@@ -17,9 +17,22 @@ class BulkDownloadController extends Controller
     private const MAX_FILES     = 5000;
     private const ALLOWED_TYPES = ['xlsx', 'xls', 'csv', 'txt', 'docx'];
 
+    // --- HELPER: Verificar permiso ---
+    private function verificarPermiso(string $permiso): bool
+    {
+        $user     = Auth::user();
+        $user->load('role');
+        $permisos = $user->role ? ($user->role->permissions ?? []) : [];
+        return in_array('*', $permisos) || in_array($permiso, $permisos);
+    }
+
     // --- 1. PREVISUALIZAR ---
     public function preview(Request $request)
     {
+        if (!$this->verificarPermiso('Descarga Masiva')) {
+            return response()->json(['message' => 'No tienes permiso para usar la descarga masiva.'], 403);
+        }
+
         $request->validate([
             'file' => 'required|file|max:10240'
         ]);
@@ -112,6 +125,10 @@ class BulkDownloadController extends Controller
     // --- 2. GENERAR TOKEN TEMPORAL DE DESCARGA ---
     public function generateToken(Request $request)
     {
+        if (!$this->verificarPermiso('Descargar Grabaciones')) {
+            return response()->json(['message' => 'No tienes permiso para descargar grabaciones.'], 403);
+        }
+
         $ids = $request->input('ids', []);
 
         if (empty($ids)) {
@@ -122,18 +139,17 @@ class BulkDownloadController extends Controller
             return response()->json(['message' => 'Límite de ' . self::MAX_FILES . ' archivos excedido.'], 422);
         }
 
-        // Generar token único y guardarlo en caché por 5 minutos
         $token = \Illuminate\Support\Str::random(64);
         Cache::put("bulk_download_{$token}", [
             'ids'     => $ids,
             'user_id' => Auth::id(),
             'ip'      => $request->ip(),
-        ], 300); // 5 minutos
+        ], 300);
 
         return response()->json(['token' => $token]);
     }
 
-    // --- 3. DESCARGA ZIP POR TOKEN (GET — Streaming inmediato) ---
+    // --- 3. DESCARGA ZIP POR TOKEN ---
     public function streamByToken(string $token)
     {
         $data = Cache::get("bulk_download_{$token}");
@@ -142,7 +158,6 @@ class BulkDownloadController extends Controller
             abort(404, 'Token de descarga inválido o expirado.');
         }
 
-        // Invalidar token inmediatamente — un solo uso
         Cache::forget("bulk_download_{$token}");
 
         $ids = $data['ids'];
@@ -165,7 +180,6 @@ class BulkDownloadController extends Controller
             $campaignCounts[$campName]++;
         }
 
-        // Auditoría
         try {
             AuditLog::create([
                 'user_id'    => $data['user_id'],
@@ -179,7 +193,6 @@ class BulkDownloadController extends Controller
             ]);
         } catch (\Exception $e) {}
 
-        // STREAMING DIRECTO — Sin esperar blob completo en el frontend
         return response()->stream(function () use ($recordings, $zipName) {
 
             $zip = new ZipStream(
@@ -189,12 +202,8 @@ class BulkDownloadController extends Controller
 
             foreach ($recordings as $rec) {
                 if (!file_exists($rec->full_path)) continue;
-
                 try {
-                    $zip->addFileFromPath(
-                        fileName: $rec->filename,
-                        path: $rec->full_path,
-                    );
+                    $zip->addFileFromPath(fileName: $rec->filename, path: $rec->full_path);
                 } catch (\Exception $e) {
                     Log::warning("BulkDownload ZIP: No se pudo agregar {$rec->filename}: " . $e->getMessage());
                 }
@@ -217,7 +226,6 @@ class BulkDownloadController extends Controller
         $sinExtension = array_map(fn($v) => pathinfo($v, PATHINFO_FILENAME), $valores);
         $conExtension = $valores;
 
-        // PASO 1: whereIn en filename
         $t1    = microtime(true);
         $paso1 = Recording::where(function ($q) use ($sinExtension, $conExtension) {
                 $q->whereIn('filename', $conExtension)
@@ -233,7 +241,6 @@ class BulkDownloadController extends Controller
 
         if (empty($noEncontradosPaso1)) return $paso1;
 
-        // PASO 2: whereIn en cédula y teléfono
         $t2    = microtime(true);
         $paso2 = Recording::where(function ($q) use ($noEncontradosPaso1) {
                 $q->whereIn('cedula', $noEncontradosPaso1)
@@ -249,7 +256,6 @@ class BulkDownloadController extends Controller
 
         if (empty($noEncontradosPaso2)) return $paso1->merge($paso2)->unique('id');
 
-        // PASO 3: LIKE en filename
         $t3    = microtime(true);
         $paso3 = Recording::where(function ($q) use ($noEncontradosPaso2) {
                 foreach ($noEncontradosPaso2 as $valor) {
@@ -270,7 +276,6 @@ class BulkDownloadController extends Controller
         $valor = trim($valor);
 
         if (strlen($valor) < 4) return false;
-
         if (preg_match('/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/', $valor)) return false;
         if (preg_match('/^\d{4}[\/\-]\d{2}[\/\-]\d{2}$/', $valor)) return false;
         if (preg_match('/^\d+$/', $valor) && (int)$valor >= 40000 && (int)$valor <= 60000) return false;
