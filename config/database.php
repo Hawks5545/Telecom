@@ -63,6 +63,21 @@ return [
             ]) : [],
         ],
 
+  	'mysql_temp' => [
+	    'driver'    => 'mysql',
+	    'host'      => env('DB_MYSQL_HOST', '127.0.0.1'),
+	    'port'      => env('DB_MYSQL_PORT', '3306'),
+	    'database'  => env('DB_MYSQL_DATABASE', 'telecom_mysql'),
+	    'username'  => env('DB_MYSQL_USERNAME', 'migrator'),
+	    'password'  => env('DB_MYSQL_PASSWORD', 'migrator123'),
+	    'charset'   => 'utf8mb4',
+	    'collation' => 'utf8mb4_unicode_ci',
+	    'prefix'    => '',
+	    'strict'    => true,
+	    'engine'    => null,
+	  ],
+
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

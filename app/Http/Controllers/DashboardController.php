@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -131,13 +132,13 @@ class DashboardController extends Controller
                 $topDemand = array_slice($demandStats, 0, 10);
 
                 // --- B. DISTRIBUCIÓN (Dona) ---
-                $inventory = StorageLocation::where('is_active', true)
-                    ->where('name', 'not like', '%Importaci%')
-                    ->withCount('recordings')
-                    ->having('recordings_count', '>', 0)
-                    ->orderByDesc('recordings_count')
-                    ->limit(6)
-                    ->get();
+		$inventory = StorageLocation::where('is_active', true)
+		    ->where('name', 'not like', '%Importaci%')
+		    ->withCount('recordings')
+		    ->orderByDesc('recordings_count')
+		    ->limit(6)
+		    ->get()
+		    ->filter(fn($loc) => $loc->recordings_count > 0);
 
                 return [
                     'campaigns' => [
